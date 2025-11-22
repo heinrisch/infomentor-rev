@@ -1,0 +1,5 @@
+__pycache__
+files/
+news/
+infomentor_tokens.json
+.env
