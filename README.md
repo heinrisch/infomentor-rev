@@ -61,3 +61,103 @@ uv run cli.py fetch --once
 ```bash
 uv run cli.py fetch
 ```
+
+## Docker Setup
+
+The application can be run in a Docker container for easier deployment and isolation.
+
+### Prerequisites
+
+- Docker
+- Docker Compose (recommended)
+
+### Quick Start with Docker Compose
+
+1. **Copy the example environment file:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit `.env` and add your credentials:**
+   ```env
+   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
+   PERPLEXITY_API_KEY=pplx-your-api-key-here
+   ```
+
+3. **Authenticate (one-time setup):**
+   
+   Before running the fetcher, you need to authenticate. Run the auth command:
+   ```bash
+   docker-compose run --rm infomentor-fetcher auth
+   ```
+   
+   Follow the interactive prompts to log in with BankID. This will create `infomentor_tokens.json` in your current directory.
+
+4. **Start the fetcher:**
+   ```bash
+   docker-compose up -d
+   ```
+
+5. **View logs:**
+   ```bash
+   docker-compose logs -f
+   ```
+
+6. **Stop the fetcher:**
+   ```bash
+   docker-compose down
+   ```
+
+### Docker Compose Configuration
+
+The `docker-compose.yml` file includes the following configurable options:
+
+- **Environment Variables:** Set via `.env` file
+  - `DISCORD_WEBHOOK_URL` - Discord webhook for notifications
+  - `PERPLEXITY_API_KEY` - API key for LLM processing
+
+- **Volumes:** Persistent data storage
+  - `./infomentor_tokens.json` - Authentication tokens
+  - `./news` - Fetched news articles
+  - `./files` - Downloaded files
+
+- **Command Options:** Modify the `command` in `docker-compose.yml`:
+  ```yaml
+  command: ["fetch", "--once"]  # Run once and exit
+  command: ["fetch", "--interval", "3600"]  # Run every hour (3600 seconds)
+  ```
+
+### Standalone Docker Usage
+
+If you prefer not to use Docker Compose:
+
+1. **Build the image:**
+   ```bash
+   docker build -t infomentor-fetcher .
+   ```
+
+2. **Run authentication:**
+   ```bash
+   docker run --rm -it \
+     -v $(pwd)/infomentor_tokens.json:/app/infomentor_tokens.json \
+     infomentor-fetcher auth
+   ```
+
+3. **Run the fetcher:**
+   ```bash
+   docker run -d \
+     --name infomentor-fetcher \
+     --shm-size=2gb \
+     -e DISCORD_WEBHOOK_URL="your_webhook_url" \
+     -e PERPLEXITY_API_KEY="your_api_key" \
+     -v $(pwd)/infomentor_tokens.json:/app/infomentor_tokens.json \
+     -v $(pwd)/news:/app/news \
+     -v $(pwd)/files:/app/files \
+     infomentor-fetcher fetch
+   ```
+
+### Troubleshooting Docker
+
+- **Chromium issues:** The container includes Chromium for Selenium. If you encounter issues, ensure `shm_size` is set to at least `2gb`.
+- **Permission issues:** Ensure the mounted volumes have appropriate permissions.
+- **Token expiration:** If authentication fails, re-run the `auth` command to refresh tokens.

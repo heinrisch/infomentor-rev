@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Cache
+.ruff_cache/
+
+# Data files (these should be mounted as volumes)
+news/
+files/
+infomentor_tokens.json
+
+# Environment
+.env
+
+# Documentation
+README.md

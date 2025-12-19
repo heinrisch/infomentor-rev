@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 
@@ -14,8 +15,8 @@ class Config:
         self.auth_base_url = "https://im.infomentor.se"
 
     def load_env(self):
-        """Simple .env loader"""
-        env_vars = {}
+        """Simple .env loader that merges with os.environ"""
+        env_vars = os.environ.copy()
         env_file = Path(".env")
         if env_file.exists():
             with open(env_file, "r") as f:

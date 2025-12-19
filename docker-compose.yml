@@ -1,0 +1,38 @@
+services:
+  infomentor-fetcher:
+    build: .
+    container_name: infomentor-fetcher
+    restart: unless-stopped
+    
+    # Environment variables
+    environment:
+      # Required: Discord webhook URL for notifications
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      
+      # Required: Perplexity API key for LLM processing
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      
+      # Disable UV telemetry
+      - UV_NO_ANALYTICS=1
+    
+    # Volumes for persistent data
+    volumes:
+      # Token file (contains authentication tokens)
+      - ./infomentor_tokens.json:/app/infomentor_tokens.json
+      
+      # News output directory
+      - ./news:/app/news
+      
+      # Downloaded files directory
+      - ./files:/app/files
+    
+    # Command to run (default is "fetch", can override)
+    # Uncomment and modify to change behavior:
+    # command: ["fetch", "--once"]  # Run once and exit
+    # command: ["fetch", "--interval", "3600"]  # Run every hour
+    
+    # For debugging, you can override to keep container running:
+    # command: ["tail", "-f", "/dev/null"]
+    
+    # Shared memory size (needed for Chromium)
+    shm_size: '2gb'
