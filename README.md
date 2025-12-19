@@ -1,13 +1,9 @@
 # InfoMentor Notifier
 
-A Python tool designed to fetch news, schedules, and notifications from the InfoMentor platform and deliver them directly to your Discord server.
+A Python tool designed to fetch news, schedules, and notifications from the [InfoMentor](https://www.infomentor.se/) platform and deliver them directly to your Discord server.
 
-## Features
-
-- **Automated Fetching**: Retrieves news, schedules, and notifications from InfoMentor.
-- **Discord Integration**: Sends updates directly to a configured Discord webhook.
-- **Smart Processing**: Leveraging Perplexity AI for content analysis (implied usage).
-- **Persistent Session**: Handles authentication via Selenium and maintains session tokens for long-running operation.
+- Uses long-lived tokens from mobile auth
+- Supports BankID login
 
 ## Prerequisites
 
