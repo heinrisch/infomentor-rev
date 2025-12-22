@@ -2,10 +2,10 @@ import requests
 
 
 class NotificationFetcher:
-    def __init__(self, session: requests.Session, storage_manager, discord_notifier):
+    def __init__(self, session: requests.Session, storage_manager, notifier):
         self.session = session
         self.storage_manager = storage_manager
-        self.discord_notifier = discord_notifier
+        self.notifier = notifier
         self.web_base_url: str | None = None
 
     def fetch_notifications(self):
@@ -52,7 +52,7 @@ class NotificationFetcher:
                 return []
         except Exception as e:
             print(f"  ✗ ERROR: Error fetching notifications: {e}")
-            self.discord_notifier.send_error("Fetching Notifications", e)
+            self.notifier.send_error("Fetching Notifications", e)
             return []
 
     def process_notifications(self):
@@ -76,6 +76,6 @@ class NotificationFetcher:
                     title = notification.get("title", "No title")
                     print(f"  ✓ NEW: {filename.name} - {title}")
 
-                    self.discord_notifier.send_notification(notification)
+                    self.notifier.send_notification(notification)
         else:
             print("  → No new notifications")

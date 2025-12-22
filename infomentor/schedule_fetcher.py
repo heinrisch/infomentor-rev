@@ -4,10 +4,10 @@ import requests
 
 
 class ScheduleFetcher:
-    def __init__(self, session: requests.Session, storage_manager, discord_notifier):
+    def __init__(self, session: requests.Session, storage_manager, notifier):
         self.session = session
         self.storage_manager = storage_manager
-        self.discord_notifier = discord_notifier
+        self.notifier = notifier
         self.web_base_url: str | None = "https://hub.infomentor.se"
 
     def get_current_week_dates(self):
@@ -68,7 +68,7 @@ class ScheduleFetcher:
                 return None
         except Exception as e:
             print(f"  ✗ ERROR: Error fetching schedule: {e}")
-            self.discord_notifier.send_error("Fetching Schedule", e)
+            self.notifier.send_error("Fetching Schedule", e)
             return None
 
     def process_schedule(self):
@@ -92,7 +92,7 @@ class ScheduleFetcher:
             last_sunday_post = self.storage_manager.get_last_sunday_post()
             if last_sunday_post != today.strftime("%Y-%m-%d"):
                 print("  → It's Sunday, posting full schedule...")
-                self.discord_notifier.send_schedule_update(
+                self.notifier.send_schedule_update(
                     current_schedule, week_str, is_new_week=True
                 )
                 self.storage_manager.save_schedule(week_str, current_schedule)
@@ -104,7 +104,7 @@ class ScheduleFetcher:
             changes = self.detect_changes(previous_schedule, current_schedule)
             if changes:
                 print(f"  → Found {len(changes)} changes in schedule")
-                self.discord_notifier.send_schedule_update(
+                self.notifier.send_schedule_update(
                     current_schedule, week_str, changes=changes
                 )
                 self.storage_manager.save_schedule(week_str, current_schedule)

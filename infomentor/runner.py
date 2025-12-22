@@ -10,8 +10,10 @@ from .discord_notifier import DiscordNotifier
 from .llm_client import LLMClient
 from .news_fetcher import NewsFetcher
 from .notification_fetcher import NotificationFetcher
+from .notifier import CompositeNotifier
 from .schedule_fetcher import ScheduleFetcher
 from .storage import StorageManager
+from .telegram_notifier import TelegramNotifier
 
 
 class InfoMentorFetcher:
@@ -29,20 +31,33 @@ class InfoMentorFetcher:
             self.config.output_dir, self.config.files_dir
         )
         self.llm_client = LLMClient(self.config.perplexity_api_key)
-        self.discord_notifier = DiscordNotifier(self.config.discord_webhook_url)
+
+        notifiers = []
+        if self.config.discord_webhook_url:
+            notifiers.append(DiscordNotifier(self.config.discord_webhook_url))
+        if self.config.telegram_bot_token and self.config.telegram_chat_id:
+            notifiers.append(
+                TelegramNotifier(
+                    self.config.telegram_bot_token, self.config.telegram_chat_id
+                )
+            )
+
+        self.notifier = CompositeNotifier(notifiers)
+        print(f"Initialized {len(notifiers)} notification channels: " + 
+              ", ".join([n.__class__.__name__ for n in notifiers]))
 
         self.news_fetcher = NewsFetcher(
             self.session,
             self.storage_manager,
-            self.discord_notifier,
+            self.notifier,
             self.llm_client,
             self.config.files_dir,
         )
         self.schedule_fetcher = ScheduleFetcher(
-            self.session, self.storage_manager, self.discord_notifier
+            self.session, self.storage_manager, self.notifier
         )
         self.notification_fetcher = NotificationFetcher(
-            self.session, self.storage_manager, self.discord_notifier
+            self.session, self.storage_manager, self.notifier
         )
 
     def fetch_and_process(self):
@@ -74,21 +89,21 @@ class InfoMentorFetcher:
             )
         except Exception as e:
             print(f"  ✗ ERROR processing news: {e}")
-            self.discord_notifier.send_error("Processing News", e)
+            self.notifier.send_error("Processing News", e)
 
         # Process Schedule
         try:
             self.schedule_fetcher.process_schedule()
         except Exception as e:
             print(f"  ✗ ERROR processing schedule: {e}")
-            self.discord_notifier.send_error("Processing Schedule", e)
+            self.notifier.send_error("Processing Schedule", e)
 
         # Process Notifications
         try:
             self.notification_fetcher.process_notifications()
         except Exception as e:
             print(f"  ✗ ERROR processing notifications: {e}")
-            self.discord_notifier.send_error("Processing Notifications", e)
+            self.notifier.send_error("Processing Notifications", e)
 
         print(f"\n{'='*60}\n")
 
@@ -104,7 +119,7 @@ class InfoMentorFetcher:
                 self.fetch_and_process()
             except Exception as e:
                 print(f"  ✗ CRITICAL ERROR in run loop: {e}")
-                self.discord_notifier.send_error("Main Run Loop", e)
+                self.notifier.send_error("Main Run Loop", e)
 
             # Add 1/15 variation converted to int
             vari = base_interval // 15

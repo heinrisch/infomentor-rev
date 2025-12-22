@@ -1,6 +1,7 @@
-import requests
 import json
 from datetime import datetime
+
+import requests
 
 
 class NewsFetcher:
@@ -8,13 +9,13 @@ class NewsFetcher:
         self,
         session: requests.Session,
         storage_manager,
-        discord_notifier,
+        notifier,
         llm_client,
         files_dir,
     ):
         self.session = session
         self.storage_manager = storage_manager
-        self.discord_notifier = discord_notifier
+        self.notifier = notifier
         self.llm_client = llm_client
         self.files_dir = files_dir
         self.web_base_url = None
@@ -163,12 +164,12 @@ class NewsFetcher:
                 highlights = analysis.get("highlights", [])
 
                 print(f"    ✓ Generated summary ({len(summary)} chars)")
-                self.discord_notifier.send_webhook(
+                self.notifier.send_webhook(
                     summary, events, highlights, title, attachment_paths, item
                 )
         except Exception as e:
             print(f"    ✗ ERROR processing LLM analysis: {e}")
-            self.discord_notifier.send_error(f"LLM Analysis for '{title}'", e)
+            self.notifier.send_error(f"LLM Analysis for '{title}'", e)
 
     def process_news(self, access_token):
         """Fetch, save, and process news items"""
