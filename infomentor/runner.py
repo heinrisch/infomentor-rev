@@ -31,7 +31,9 @@ class InfoMentorFetcher:
         self.storage_manager = StorageManager(
             self.config.output_dir, self.config.files_dir
         )
-        self.llm_client = LLMClient(self.config.perplexity_api_key)
+        self.llm_client = LLMClient(
+            self.config.perplexity_api_key, self.config.gemini_api_key
+        )
 
         notifiers = []
         if self.config.discord_webhook_url:

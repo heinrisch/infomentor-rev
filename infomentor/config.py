@@ -6,6 +6,7 @@ class Config:
     def __init__(self):
         self.env = self.load_env()
         self.perplexity_api_key = self.env.get("PERPLEXITY_API_KEY")
+        self.gemini_api_key = self.env.get("GEMINI_API_KEY")
         self.discord_webhook_url = self.env.get("DISCORD_WEBHOOK_URL")
         self.telegram_bot_token = self.env.get("TELEGRAM_BOT_TOKEN")
         self.telegram_chat_id = self.env.get("TELEGRAM_CHAT_ID")

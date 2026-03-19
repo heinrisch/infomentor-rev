@@ -152,7 +152,7 @@ class NotificationFetcher:
                         events = []
                         highlights = []
 
-                        if self.llm_client.api_key:
+                        if self.llm_client.perplexity_api_key or self.llm_client.gemini_api_key:
                             try:
                                 content_to_summarize = comm_content.get("content", "")
                                 if not content_to_summarize:

@@ -158,8 +158,8 @@ class NewsFetcher:
             return
 
         analysis = None
-        # Only summarize if we have an API key
-        if self.llm_client.api_key:
+        # Only summarize if we have an API key (Perplexity or Gemini)
+        if self.llm_client.perplexity_api_key or self.llm_client.gemini_api_key:
             try:
                 analysis = self.llm_client.summarize_news_entry(content, published_date)
                 if analysis:
