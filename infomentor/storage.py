@@ -122,3 +122,14 @@ class StorageManager:
         except Exception as e:
             print(f"    ✗ ERROR: Failed to save notification {notif_id}: {e}")
             return None
+
+    def save_pupils(self, pupils_data):
+        """Save pupils information to JSON file"""
+        filename = self.output_dir / "pupils.json"
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(pupils_data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to save pupils: {e}")
+            return False

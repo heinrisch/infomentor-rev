@@ -11,6 +11,7 @@ from .llm_client import LLMClient
 from .news_fetcher import NewsFetcher
 from .notification_fetcher import NotificationFetcher
 from .notifier import CompositeNotifier
+from .pupil_fetcher import PupilFetcher
 from .schedule_fetcher import ScheduleFetcher
 from .storage import StorageManager
 from .telegram_notifier import TelegramNotifier
@@ -59,6 +60,9 @@ class InfoMentorFetcher:
         self.notification_fetcher = NotificationFetcher(
             self.session, self.storage_manager, self.notifier
         )
+        self.pupil_fetcher = PupilFetcher(
+            self.session, self.storage_manager
+        )
 
     def fetch_and_process(self):
         """Fetch and save all data (news, schedule, notifications)"""
@@ -81,6 +85,26 @@ class InfoMentorFetcher:
         self.news_fetcher.use_bearer_token = self.session_manager.use_bearer_token
         self.schedule_fetcher.web_base_url = self.session_manager.web_base_url
         self.notification_fetcher.web_base_url = self.session_manager.web_base_url
+        self.pupil_fetcher.web_base_url = self.session_manager.web_base_url
+
+        # Process Pupils
+        pupil_name = None
+        try:
+            pupils = self.pupil_fetcher.process_pupils()
+            if pupils:
+                # Find the selected pupil, or default to the first one
+                selected_pupil = next((p for p in pupils if p.get("selected")), pupils[0])
+                if selected_pupil:
+                    pupil_name = selected_pupil.get("name")
+                    print(f"  → Active pupil: {pupil_name}")
+        except Exception as e:
+            print(f"  ✗ ERROR processing pupils: {e}")
+            self.notifier.send_error("Processing Pupils", e)
+
+        # Update fetchers with pupil name
+        self.news_fetcher.pupil_name = pupil_name
+        self.schedule_fetcher.pupil_name = pupil_name
+        self.notification_fetcher.pupil_name = pupil_name
 
         # Process News
         try:

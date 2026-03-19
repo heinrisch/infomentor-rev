@@ -9,6 +9,7 @@ class ScheduleFetcher:
         self.storage_manager = storage_manager
         self.notifier = notifier
         self.web_base_url: str | None = "https://hub.infomentor.se"
+        self.pupil_name = None
 
     def get_current_week_dates(self):
         """Get start (Sunday) and end (Saturday) dates for the current week"""
@@ -93,7 +94,7 @@ class ScheduleFetcher:
             if last_sunday_post != today.strftime("%Y-%m-%d"):
                 print("  → It's Sunday, posting full schedule...")
                 self.notifier.send_schedule_update(
-                    current_schedule, week_str, is_new_week=True
+                    current_schedule, week_str, is_new_week=True, pupil_name=self.pupil_name
                 )
                 self.storage_manager.save_schedule(week_str, current_schedule)
                 self.storage_manager.set_last_sunday_post(today.strftime("%Y-%m-%d"))
@@ -105,7 +106,7 @@ class ScheduleFetcher:
             if changes:
                 print(f"  → Found {len(changes)} changes in schedule")
                 self.notifier.send_schedule_update(
-                    current_schedule, week_str, changes=changes
+                    current_schedule, week_str, changes=changes, pupil_name=self.pupil_name
                 )
                 self.storage_manager.save_schedule(week_str, current_schedule)
             else:

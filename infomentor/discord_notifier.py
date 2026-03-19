@@ -30,7 +30,9 @@ class DiscordNotifier:
             print(f"    ⚠ Error generating Google Calendar URL: {e}")
             return None
 
-    def send_summary_message(self, summary, events, news_title, attachment_paths=None):
+    def send_summary_message(
+        self, summary, events, news_title, attachment_paths=None, pupil_name=None
+    ):
         if not self.webhook_url:
             print("    ⚠ No Discord webhook URL found, skipping notification")
             return
@@ -44,8 +46,12 @@ class DiscordNotifier:
                 gcal_url = self.generate_google_calendar_url(event)
                 summary_message += f"- [{event['title']} ({event['start']} - {event['end']})]({gcal_url})\n"
 
+        title = f"News: {news_title}"
+        if pupil_name:
+            title = f"[{pupil_name}] {title}"
+
         embed1 = {
-            "title": f"News: {news_title}",
+            "title": title,
             "description": summary_message,
             "color": 3447003,
         }
@@ -220,25 +226,34 @@ class DiscordNotifier:
         news_title,
         attachment_paths=None,
         full_item=None,
+        pupil_name=None,
     ):
-        self.send_summary_message(summary, events, news_title, attachment_paths)
+        self.send_summary_message(
+            summary, events, news_title, attachment_paths, pupil_name
+        )
         if full_item:
             self.send_full_content_message(full_item)
         if highlights:
             self.send_highlights_message(highlights)
 
-    def send_schedule_update(self, schedule, week_str, is_new_week=False, changes=None):
+    def send_schedule_update(
+        self, schedule, week_str, is_new_week=False, changes=None, pupil_name=None
+    ):
         if not self.webhook_url:
             return
 
-        title = f"📅 Schedule for week of {week_str}"
+        title_text = f"Schedule for week of {week_str}"
         if is_new_week:
+            title = f"📅 {title_text}"
             description = "Here is the schedule for the upcoming week."
             color = 3447003  # Blue
         else:
             title = f"⚠️ Schedule Update: Week of {week_str}"
             description = "The schedule has been updated!"
             color = 15158332  # Red/Orange
+
+        if pupil_name:
+            title = f"[{pupil_name}] {title}"
 
         fields = []
 
@@ -315,7 +330,7 @@ class DiscordNotifier:
         except Exception as e:
             print(f"    ✗ Error sending schedule to Discord: {e}")
 
-    def send_notification(self, notification):
+    def send_notification(self, notification, pupil_name=None):
         if not self.webhook_url:
             return
 
@@ -330,8 +345,12 @@ class DiscordNotifier:
             full_url = f"https://hub.infomentor.se{url}"
             description += f"[Open in InfoMentor]({full_url})"
 
+        embed_title = f"🔔 {title}"
+        if pupil_name:
+            embed_title = f"[{pupil_name}] {embed_title}"
+
         embed = {
-            "title": f"🔔 {title}",
+            "title": embed_title,
             "description": description,
             "color": 10181046,  # Purple
             "footer": {"text": f"Sent: {date_sent}"},

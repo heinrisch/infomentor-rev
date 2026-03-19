@@ -20,6 +20,7 @@ class NewsFetcher:
         self.files_dir = files_dir
         self.web_base_url = None
         self.use_bearer_token = False
+        self.pupil_name = None
 
     def set_web_base_url(self, url):
         self.web_base_url = url
@@ -165,7 +166,13 @@ class NewsFetcher:
 
                 print(f"    ✓ Generated summary ({len(summary)} chars)")
                 self.notifier.send_webhook(
-                    summary, events, highlights, title, attachment_paths, item
+                    summary,
+                    events,
+                    highlights,
+                    title,
+                    attachment_paths,
+                    item,
+                    self.pupil_name,
                 )
         except Exception as e:
             print(f"    ✗ ERROR processing LLM analysis: {e}")

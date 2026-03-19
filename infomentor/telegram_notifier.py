@@ -63,9 +63,14 @@ class TelegramNotifier:
         news_title,
         attachment_paths=None,
         full_item=None,
+        pupil_name=None,
     ):
         # 1. Send Summary with Events
-        text = f"*{self.escape_markdown(news_title)}*\n\n"
+        display_title = news_title
+        if pupil_name:
+            display_title = f"[{pupil_name}] {news_title}"
+
+        text = f"*{self.escape_markdown(display_title)}*\n\n"
         text += f"{self.escape_markdown(summary)}\n"
 
         if events:
@@ -200,10 +205,15 @@ class TelegramNotifier:
         # Sending without parse_mode to ensure delivery even if chars are special
         self.send_message(full_content_message)
 
-    def send_schedule_update(self, schedule, week_str, is_new_week=False, changes=None):
+    def send_schedule_update(
+        self, schedule, week_str, is_new_week=False, changes=None, pupil_name=None
+    ):
         title = f"📅 Schedule for week of {week_str}"
         if not is_new_week:
             title = f"⚠️ Schedule Update: Week of {week_str}"
+
+        if pupil_name:
+            title = f"[{pupil_name}] {title}"
 
         text = f"*{self.escape_markdown(title)}*\n\n"
 
@@ -248,12 +258,16 @@ class TelegramNotifier:
         print("    → Sending Telegram schedule notification...")
         self.send_message(text, parse_mode="MarkdownV2")
 
-    def send_notification(self, notification):
+    def send_notification(self, notification, pupil_name=None):
         title = notification.get("title", "New Notification")
         subtitle = notification.get("subTitle", "")
         url = notification.get("url", "")
 
-        text = f"🔔 *{self.escape_markdown(title)}*\n"
+        display_title = f"🔔 {title}"
+        if pupil_name:
+            display_title = f"[{pupil_name}] {display_title}"
+
+        text = f"*{self.escape_markdown(display_title)}*\n"
         if subtitle:
             text += f"{self.escape_markdown(subtitle)}\n\n"
 

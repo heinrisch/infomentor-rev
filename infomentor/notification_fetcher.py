@@ -7,6 +7,7 @@ class NotificationFetcher:
         self.storage_manager = storage_manager
         self.notifier = notifier
         self.web_base_url: str | None = None
+        self.pupil_name = None
 
     def fetch_notifications(self):
         """Fetch notifications from InfoMentor"""
@@ -76,6 +77,6 @@ class NotificationFetcher:
                     title = notification.get("title", "No title")
                     print(f"  ✓ NEW: {filename.name} - {title}")
 
-                    self.notifier.send_notification(notification)
+                    self.notifier.send_notification(notification, self.pupil_name)
         else:
             print("  → No new notifications")
