@@ -87,47 +87,63 @@ class InfoMentorFetcher:
         self.notification_fetcher.web_base_url = self.session_manager.web_base_url
         self.pupil_fetcher.web_base_url = self.session_manager.web_base_url
 
-        # Process Pupils
-        pupil_name = None
+        # 1. Fetch pupils initially to know who we're dealing with
         try:
             pupils = self.pupil_fetcher.process_pupils()
-            if pupils:
-                # Find the selected pupil, or default to the first one
-                selected_pupil = next((p for p in pupils if p.get("selected")), pupils[0])
-                if selected_pupil:
-                    pupil_name = selected_pupil.get("name")
-                    print(f"  → Active pupil: {pupil_name}")
+            if not pupils:
+                print("  ⚠ No pupils found, nothing to process.")
+                return
         except Exception as e:
-            print(f"  ✗ ERROR processing pupils: {e}")
-            self.notifier.send_error("Processing Pupils", e)
+            print(f"  ✗ ERROR processing pupil list: {e}")
+            self.notifier.send_error("Initial Pupil List Fetch", e)
+            return
 
-        # Update fetchers with pupil name
-        self.news_fetcher.pupil_name = pupil_name
-        self.schedule_fetcher.pupil_name = pupil_name
-        self.notification_fetcher.pupil_name = pupil_name
+        # 2. Iterate over each pupil
+        for i, pupil in enumerate(pupils):
+            pupil_name = pupil.get("name", f"Pupil {i+1}")
+            pupil_id = pupil.get("id")
+            switch_url = pupil.get("switchPupilUrl")
 
-        # Process News
-        try:
-            self.news_fetcher.process_news(
-                access_token=self.token_manager.get_access_token()
-            )
-        except Exception as e:
-            print(f"  ✗ ERROR processing news: {e}")
-            self.notifier.send_error("Processing News", e)
+            print(f"\n--- Processing Pupil: {pupil_name} (ID: {pupil_id}) ---")
 
-        # Process Schedule
-        try:
-            self.schedule_fetcher.process_schedule()
-        except Exception as e:
-            print(f"  ✗ ERROR processing schedule: {e}")
-            self.notifier.send_error("Processing Schedule", e)
+            # Update fetchers with current pupil name and ID
+            self.news_fetcher.pupil_name = pupil_name
+            self.news_fetcher.pupil_id = pupil_id
+            self.schedule_fetcher.pupil_name = pupil_name
+            self.schedule_fetcher.pupil_id = pupil_id
+            self.notification_fetcher.pupil_name = pupil_name
+            self.notification_fetcher.pupil_id = pupil_id
 
-        # Process Notifications
-        try:
-            self.notification_fetcher.process_notifications()
-        except Exception as e:
-            print(f"  ✗ ERROR processing notifications: {e}")
-            self.notifier.send_error("Processing Notifications", e)
+            # Switch context if needed
+            if switch_url:
+                if not self.session_manager.switch_pupil(switch_url):
+                    print(f"  ✗ Skipping {pupil_name} due to switch failure")
+                    continue
+            else:
+                print(f"  ⚠ No switch URL for {pupil_name}, proceeding with current context")
+
+            # Process News
+            try:
+                self.news_fetcher.process_news(
+                    access_token=self.token_manager.get_access_token()
+                )
+            except Exception as e:
+                print(f"  ✗ ERROR processing news for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing News ({pupil_name})", e)
+
+            # Process Schedule
+            try:
+                self.schedule_fetcher.process_schedule()
+            except Exception as e:
+                print(f"  ✗ ERROR processing schedule for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Schedule ({pupil_name})", e)
+
+            # Process Notifications
+            try:
+                self.notification_fetcher.process_notifications()
+            except Exception as e:
+                print(f"  ✗ ERROR processing notifications for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Notifications ({pupil_name})", e)
 
         print(f"\n{'='*60}\n")
 

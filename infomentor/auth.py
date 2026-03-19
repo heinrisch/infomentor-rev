@@ -331,6 +331,33 @@ class SessionManager:
             print(f"  ✗ ERROR: Unexpected error getting SSO URL: {e}")
             return None
 
+    def switch_pupil(self, switch_url):
+        """
+        Call the switchPupilUrl to change the session context to a specific pupil.
+        """
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Referer": f"{self.web_base_url}/",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+
+        try:
+            print(f"  → Switching to pupil via: {switch_url}")
+            # The switch URL usually redirects back to the hub root or a specific page
+            response = self.session.get(
+                switch_url, headers=headers, timeout=30, allow_redirects=True
+            )
+
+            if response.status_code == 200:
+                print("  ✓ Successfully switched pupil context")
+                return True
+            else:
+                print(f"  ✗ ERROR: Switch pupil returned status {response.status_code}")
+                return False
+        except Exception as e:
+            print(f"  ✗ ERROR: Error switching pupil: {e}")
+            return False
+
     def establish_web_session_with_selenium(self, sso_url):
         """
         Use Selenium to load the SSO URL and let JavaScript execute to complete authentication.

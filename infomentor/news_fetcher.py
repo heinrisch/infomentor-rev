@@ -21,6 +21,7 @@ class NewsFetcher:
         self.web_base_url = None
         self.use_bearer_token = False
         self.pupil_name = None
+        self.pupil_id = None
 
     def set_web_base_url(self, url):
         self.web_base_url = url
@@ -181,7 +182,7 @@ class NewsFetcher:
     def process_news(self, access_token):
         """Fetch, save, and process news items"""
         # Get existing IDs and attachments before fetching
-        existing_ids = self.storage_manager.get_existing_ids()
+        existing_ids = self.storage_manager.get_existing_ids(pupil_id=self.pupil_id)
         existing_attachments = self.storage_manager.get_existing_attachments()
 
         items = self.fetch_news(access_token=access_token)
@@ -192,7 +193,9 @@ class NewsFetcher:
             if new_items:
                 print(f"  → Found {len(new_items)} new news items")
                 for item in new_items:
-                    filename = self.storage_manager.save_news_item(item)
+                    filename = self.storage_manager.save_news_item(
+                        item, pupil_id=self.pupil_id
+                    )
                     if filename:
                         title = item.get("title", "No title")
                         published = item.get("publishedDateString", "Unknown date")

@@ -8,6 +8,7 @@ class NotificationFetcher:
         self.notifier = notifier
         self.web_base_url: str | None = None
         self.pupil_name = None
+        self.pupil_id = None
 
     def fetch_notifications(self):
         """Fetch notifications from InfoMentor"""
@@ -63,7 +64,9 @@ class NotificationFetcher:
         if not notifications:
             return
 
-        existing_ids = self.storage_manager.get_existing_notification_ids()
+        existing_ids = self.storage_manager.get_existing_notification_ids(
+            pupil_id=self.pupil_id
+        )
 
         new_notifications = [
             n for n in notifications if n.get("id") not in existing_ids
@@ -72,7 +75,9 @@ class NotificationFetcher:
         if new_notifications:
             print(f"  → Found {len(new_notifications)} new notifications")
             for notification in new_notifications:
-                filename = self.storage_manager.save_notification(notification)
+                filename = self.storage_manager.save_notification(
+                    notification, pupil_id=self.pupil_id
+                )
                 if filename:
                     title = notification.get("title", "No title")
                     print(f"  ✓ NEW: {filename.name} - {title}")
