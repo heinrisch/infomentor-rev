@@ -38,13 +38,19 @@ class DiscordNotifier:
             return
 
         # --- Message 1: Summary & Events ---
-        summary_message = summary + "\n\n"
+        summary_message = ""
+        if summary:
+            summary_message = summary + "\n\n"
 
         if events:
             summary_message += "Events:\n"
             for event in events:
                 gcal_url = self.generate_google_calendar_url(event)
                 summary_message += f"- [{event['title']} ({event['start']} - {event['end']})]({gcal_url})\n"
+
+        # If we have no summary or events, just provide the news header
+        if not summary_message:
+            summary_message = "New news item published."
 
         title = f"News: {news_title}"
         if pupil_name:

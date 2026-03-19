@@ -157,27 +157,35 @@ class NewsFetcher:
         if not content:
             return
 
+        analysis = None
+        # Only summarize if we have an API key
+        if self.llm_client.api_key:
+            try:
+                analysis = self.llm_client.summarize_news_entry(content, published_date)
+                if analysis:
+                    print(f"    ✓ Generated summary ({len(analysis.get('summary', ''))} chars)")
+            except Exception as e:
+                print(f"    ✗ ERROR processing LLM analysis: {e}")
+                self.notifier.send_error(f"LLM Analysis for '{title}'", e)
+
+        # Send to notifiers even if summary is missing
         try:
-            analysis = self.llm_client.summarize_news_entry(content, published_date)
+            summary = analysis.get("summary") if analysis else None
+            events = analysis.get("events", []) if analysis else []
+            highlights = analysis.get("highlights", []) if analysis else []
 
-            if analysis:
-                summary = analysis.get("summary", "No summary available.")
-                events = analysis.get("events", [])
-                highlights = analysis.get("highlights", [])
-
-                print(f"    ✓ Generated summary ({len(summary)} chars)")
-                self.notifier.send_webhook(
-                    summary,
-                    events,
-                    highlights,
-                    title,
-                    attachment_paths,
-                    item,
-                    self.pupil_name,
-                )
+            self.notifier.send_webhook(
+                summary,
+                events,
+                highlights,
+                title,
+                attachment_paths,
+                item,
+                self.pupil_name,
+            )
         except Exception as e:
-            print(f"    ✗ ERROR processing LLM analysis: {e}")
-            self.notifier.send_error(f"LLM Analysis for '{title}'", e)
+            print(f"    ✗ ERROR sending notification for '{title}': {e}")
+            self.notifier.send_error(f"Notification for '{title}'", e)
 
     def process_news(self, access_token):
         """Fetch, save, and process news items"""

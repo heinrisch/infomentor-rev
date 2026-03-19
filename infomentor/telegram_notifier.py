@@ -71,7 +71,10 @@ class TelegramNotifier:
             display_title = f"[{pupil_name}] {news_title}"
 
         text = f"*{self.escape_markdown(display_title)}*\n\n"
-        text += f"{self.escape_markdown(summary)}\n"
+        if summary:
+            text += f"{self.escape_markdown(summary)}\n"
+        elif not events and not highlights:
+            text += "New news item published.\n"
 
         if events:
             text += "\n*Events:*\n"

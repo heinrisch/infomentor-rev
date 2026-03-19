@@ -58,7 +58,11 @@ class InfoMentorFetcher:
             self.session, self.storage_manager, self.notifier
         )
         self.notification_fetcher = NotificationFetcher(
-            self.session, self.storage_manager, self.notifier
+            self.session,
+            self.storage_manager,
+            self.notifier,
+            self.llm_client,
+            self.news_fetcher,
         )
         self.pupil_fetcher = PupilFetcher(
             self.session, self.storage_manager
