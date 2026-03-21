@@ -1,7 +1,6 @@
-FROM python:3.11-slim-bookworm
-
-# Install uv.
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+# Use the official astral-sh/uv image as the base.
+# This image comes with uv pre-installed and is based on python:3.11-slim-bookworm.
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 
 # Install system dependencies
 # chromium: for selenium
@@ -15,6 +14,9 @@ RUN apt-get update && apt-get install -y \
 
 # Set up working directory
 WORKDIR /app
+
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
 
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
