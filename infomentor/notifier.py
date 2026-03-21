@@ -35,6 +35,10 @@ class CompositeNotifier:
         for notifier in self.notifiers:
             notifier.send_notification(notification, pupil_name)
 
+    def send_attendance_update(self, new_records, pupil_name=None):
+        for notifier in self.notifiers:
+            notifier.send_attendance_update(new_records, pupil_name)
+
     def send_error(self, context, error_message):
         for notifier in self.notifiers:
             notifier.send_error(context, error_message)

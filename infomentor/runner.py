@@ -4,6 +4,7 @@ from datetime import datetime
 
 import requests
 
+from .attendance_fetcher import AttendanceFetcher
 from .auth import SessionManager, TokenManager
 from .config import Config
 from .discord_notifier import DiscordNotifier
@@ -59,6 +60,9 @@ class InfoMentorFetcher:
         self.schedule_fetcher = ScheduleFetcher(
             self.session, self.storage_manager, self.notifier
         )
+        self.attendance_fetcher = AttendanceFetcher(
+            self.session, self.storage_manager, self.notifier
+        )
         self.notification_fetcher = NotificationFetcher(
             self.session,
             self.storage_manager,
@@ -90,6 +94,7 @@ class InfoMentorFetcher:
         self.news_fetcher.set_web_base_url(self.session_manager.web_base_url)
         self.news_fetcher.use_bearer_token = self.session_manager.use_bearer_token
         self.schedule_fetcher.web_base_url = self.session_manager.web_base_url
+        self.attendance_fetcher.web_base_url = self.session_manager.web_base_url
         self.notification_fetcher.web_base_url = self.session_manager.web_base_url
         self.pupil_fetcher.web_base_url = self.session_manager.web_base_url
 
@@ -108,7 +113,7 @@ class InfoMentorFetcher:
         for i, pupil in enumerate(pupils):
             pupil_name = pupil.get("name", f"Pupil {i+1}")
             pupil_id = pupil.get("id")
-            switch_url = pupil.get("switchPupilUrl")
+            switch_url = pupil.get("switch_url") or pupil.get("switchPupilUrl")
 
             print(f"\n--- Processing Pupil: {pupil_name} (ID: {pupil_id}) ---")
 
@@ -117,6 +122,8 @@ class InfoMentorFetcher:
             self.news_fetcher.pupil_id = pupil_id
             self.schedule_fetcher.pupil_name = pupil_name
             self.schedule_fetcher.pupil_id = pupil_id
+            self.attendance_fetcher.pupil_name = pupil_name
+            self.attendance_fetcher.pupil_id = pupil_id
             self.notification_fetcher.pupil_name = pupil_name
             self.notification_fetcher.pupil_id = pupil_id
 
@@ -143,6 +150,13 @@ class InfoMentorFetcher:
             except Exception as e:
                 print(f"  ✗ ERROR processing schedule for {pupil_name}: {e}")
                 self.notifier.send_error(f"Processing Schedule ({pupil_name})", e)
+
+            # Process Attendance
+            try:
+                self.attendance_fetcher.process_attendance()
+            except Exception as e:
+                print(f"  ✗ ERROR processing attendance for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Attendance ({pupil_name})", e)
 
             # Process Notifications
             try:

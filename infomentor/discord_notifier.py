@@ -375,6 +375,53 @@ class DiscordNotifier:
         except Exception as e:
             print(f"    ✗ Error sending notification to Discord: {e}")
 
+    def send_attendance_update(self, new_records, pupil_name=None):
+        if not self.webhook_url or not new_records:
+            return
+
+        title = "Attendance Update"
+        if pupil_name:
+            title = f"[{pupil_name}] {title}"
+
+        description = f"Found {len(new_records)} new attendance records."
+        
+        fields = []
+        for record in new_records:
+            date = record.get("dateString", "Unknown Date")
+            lesson = record.get("lessonName", "Unknown Lesson")
+            status = record.get("registrationTypeName", "Unknown Status")
+            comment = record.get("comment", "")
+            
+            value = f"**Status:** {status}\n**Lesson:** {lesson}"
+            if comment:
+                value += f"\n**Comment:** {comment}"
+                
+            fields.append({
+                "name": date,
+                "value": value,
+                "inline": False
+            })
+
+        embed = {
+            "title": f"📝 {title}",
+            "description": description,
+            "color": 15105570,  # Orange/Yellow
+            "fields": fields[:25] # Discord limit is 25 fields
+        }
+
+        data = {
+            "embeds": [embed],
+            "username": "InfoMentor Attendance",
+            "avatar_url": "https://www.infomentor.se/wp-content/uploads/2024/03/im-logo-full.png",
+        }
+
+        try:
+            print("    → Sending Discord attendance notification...")
+            requests.post(self.webhook_url, json=data, timeout=30)
+            print("    ✓ Attendance update sent to Discord")
+        except Exception as e:
+            print(f"    ✗ Error sending attendance update to Discord: {e}")
+
     def send_error(self, context, error_message):
         if not self.webhook_url:
             return

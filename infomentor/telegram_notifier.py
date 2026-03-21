@@ -283,6 +283,36 @@ class TelegramNotifier:
         print("    → Sending Telegram app notification...")
         self.send_message(text, parse_mode="MarkdownV2")
 
+    def send_attendance_update(self, new_records, pupil_name=None):
+        if not new_records:
+            return
+
+        title = "📝 Attendance Update"
+        if pupil_name:
+            title = f"[{pupil_name}] {title}"
+
+        text = f"*{self.escape_markdown(title)}*\n"
+        text += rf"Found {len(new_records)} new attendance records\.\n\n"
+
+        for record in new_records:
+            date = self.escape_markdown(record.get("dateString", "Unknown Date"))
+            lesson = self.escape_markdown(record.get("lessonName", "Unknown Lesson"))
+            status = self.escape_markdown(record.get("registrationTypeName", "Unknown Status"))
+            comment = self.escape_markdown(record.get("comment", ""))
+            
+            text += f"📅 *{date}*\n"
+            text += f"• *Status:* {status}\n"
+            text += f"• *Lesson:* {lesson}\n"
+            if comment:
+                text += f"• *Comment:* {comment}\n"
+            text += "\n"
+
+        if len(text) > 4000:
+            text = text[:3997] + r"\.\.\."
+
+        print("    → Sending Telegram attendance notification...")
+        self.send_message(text, parse_mode="MarkdownV2")
+
     def send_error(self, context, error_message):
         text = f"🚨 *Error: {self.escape_markdown(context)}*\n\n"
         text += f"```{self.escape_markdown(str(error_message))}```"

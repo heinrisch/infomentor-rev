@@ -156,6 +156,38 @@ class StorageManager:
             print(f"    ✗ ERROR: Failed to save notification {notif_id}: {e}")
             return None
 
+    def save_attendance(self, attendance_data, pupil_id=None):
+        """Save attendance data for a pupil"""
+        if pupil_id:
+            filename = self.output_dir / f"attendance_{pupil_id}.json"
+        else:
+            filename = self.output_dir / "attendance.json"
+            
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(attendance_data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to save attendance: {e}")
+            return False
+
+    def load_attendance(self, pupil_id=None):
+        """Load attendance data for a pupil"""
+        if pupil_id:
+            filename = self.output_dir / f"attendance_{pupil_id}.json"
+        else:
+            filename = self.output_dir / "attendance.json"
+            
+        if not filename.exists():
+            return None
+
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to load attendance: {e}")
+            return None
+
     def save_pupils(self, pupils_data):
         """Save pupils information to JSON file"""
         filename = self.output_dir / "pupils.json"
