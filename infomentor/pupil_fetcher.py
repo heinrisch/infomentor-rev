@@ -78,9 +78,19 @@ class PupilFetcher:
             pattern = r'\{[^{}]*?["\']name["\']\s*:\s*["\']([^"\']+)["\'][^{}]*?["\']switchPupilUrl["\']\s*:\s*["\']([^"\']+)["\'][^{}]*?\}'
             matches = re.finditer(pattern, html_content)
             for match in matches:
+                name = match.group(1)
+                switch_url = match.group(2)
+                
+                # Try to extract ID from switch URL (e.g. ...?pupilId=123 or .../123)
+                pupil_id = None
+                id_match = re.search(r'pupilId=([^&"\']+)', switch_url)
+                if id_match:
+                    pupil_id = id_match.group(1)
+                
                 pupils.append({
-                    "name": match.group(1),
-                    "switchPupilUrl": match.group(2)
+                    "name": name,
+                    "id": pupil_id,
+                    "switchPupilUrl": switch_url
                 })
             
             if pupils:
@@ -89,6 +99,20 @@ class PupilFetcher:
         if not pupils:
             print("  ✗ ERROR: Could not find pupil information in HTML")
             return None
+
+        # Ensure every pupil has an ID
+        for i, pupil in enumerate(pupils):
+            if not pupil.get("id"):
+                # Try to extract from switchPupilUrl if it wasn't done above (for JSON branch)
+                switch_url = pupil.get("switchPupilUrl", "")
+                id_match = re.search(r'pupilId=([^&"\']+)', switch_url)
+                if id_match:
+                    pupil["id"] = id_match.group(1)
+                else:
+                    # Last resort: use a hash or index-based ID
+                    import hashlib
+                    pupil["id"] = hashlib.md5(pupil.get("name", f"pupil_{i}").encode()).hexdigest()[:8]
+
 
         # Save to storage
         self.storage_manager.save_pupils(pupils)
