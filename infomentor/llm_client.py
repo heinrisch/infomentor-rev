@@ -28,6 +28,14 @@ class LLMClient:
         return response_text
 
     def summarize_news_entry(self, content, published_date):
+        if not content:
+            return None
+
+        # Only summarize if content is substantial
+        if len(content) <= 300:
+            print(f"    → Skipping LLM analysis (content too short: {len(content)} chars)")
+            return None
+
         if self.perplexity_api_key:
             return self.call_perplexity(content, published_date)
         elif self.gemini_api_key:

@@ -83,11 +83,13 @@ class InfoMentorFetcher:
         # Validate and refresh token if needed
         if not self.token_manager.validate_and_refresh_token():
             print("\n✗ ABORTING: Token validation failed")
+            self.notifier.send_error("Token Validation", "Failed to validate or refresh token.")
             return
 
         # Establish web session using SSO
         if not self.session_manager.establish_web_session():
             print("\n✗ ABORTING: Could not establish web session")
+            self.notifier.send_error("Web Session Establishment", "Failed to establish web session via SSO.")
             return
 
         # Update components with web base url

@@ -49,6 +49,9 @@ class TelegramNotifier:
 
     def escape_markdown(self, text):
         """Escape MarkdownV2 special characters"""
+        if text is None:
+            return ""
+        text = str(text)
         # https://core.telegram.org/bots/api#markdownv2-style
         special_chars = r"_*[]()~`>#+-=|{}.!"
         return "".join(f"\\{c}" if c in special_chars else c for c in text)
@@ -115,7 +118,8 @@ class TelegramNotifier:
             
             content_part = f"\n*Full Content:*\n"
             content_part += f"{self.escape_markdown(title)}\n"
-            content_part += f"_{self.escape_markdown(date)} | {self.escape_markdown(author)}_\n\n"
+            # Note: | must be escaped in MarkdownV2
+            content_part += f"_{self.escape_markdown(date)} \| {self.escape_markdown(author)}_\n\n"
             content_part += self.escape_markdown(markdown_content)
 
         # 3. Combine and Split (No Truncation)
@@ -140,9 +144,25 @@ class TelegramNotifier:
                     # Find a good split point
                     split_at = remaining.rfind("\n", 0, limit)
                     if split_at == -1:
+                        split_at = remaining.rfind(" ", 0, limit)
+                    if split_at == -1:
                         split_at = limit
+                    
+                    # Ensure we don't split in the middle of an escape sequence (\.)
+                    temp_split = split_at
+                    backslashes = 0
+                    while temp_split > 0 and remaining[temp_split-1] == "\\":
+                        backslashes += 1
+                        temp_split -= 1
+                    
+                    if backslashes % 2 != 0:
+                        split_at -= 1
+
                     chunk = remaining[:split_at]
-                    remaining = remaining[split_at:].lstrip()
+                    remaining = remaining[split_at:]
+                    # If we split at a newline or space, skip it for the next part
+                    if remaining and remaining[0] in ("\n", " "):
+                        remaining = remaining[1:]
                 
                 header = f"*Part {part_num}*\n" if part_num > 1 else ""
                 self.send_message(header + chunk, parse_mode="MarkdownV2")
@@ -203,7 +223,7 @@ class TelegramNotifier:
             text += "\n"
 
         if len(text) > 4000:
-            text = text[:3997] + "..."
+            text = text[:3997] + r"\.\.\."
 
         print("    → Sending Telegram schedule notification...")
         self.send_message(text, parse_mode="MarkdownV2")
@@ -239,7 +259,7 @@ class TelegramNotifier:
             title = f"[{pupil_name}] {title}"
 
         text = f"*{self.escape_markdown(title)}*\n"
-        text += rf"Found {len(new_records)} new attendance records\.\n\n"
+        text += f"Found {len(new_records)} new attendance records\\.\n\n"
 
         for record in new_records:
             date = self.escape_markdown(record.get("dateString", "Unknown Date"))

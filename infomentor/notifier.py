@@ -41,4 +41,7 @@ class CompositeNotifier:
 
     def send_error(self, context, error_message):
         for notifier in self.notifiers:
-            notifier.send_error(context, error_message)
+            try:
+                notifier.send_error(context, error_message)
+            except Exception as e:
+                print(f"    ✗ Error sending error notification via {notifier.__class__.__name__}: {e}")
