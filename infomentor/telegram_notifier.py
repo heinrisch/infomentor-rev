@@ -65,148 +65,95 @@ class TelegramNotifier:
         full_item=None,
         pupil_name=None,
     ):
-        # 1. Send Summary with Events
         display_title = news_title
         if pupil_name:
             display_title = f"[{pupil_name}] {news_title}"
 
-        text = f"*{self.escape_markdown(display_title)}*\n\n"
+        # 1. Prepare Summary Part
+        summary_part = f"*{self.escape_markdown(display_title)}*\n\n"
         if summary:
-            text += f"{self.escape_markdown(summary)}\n"
-        elif not events and not highlights:
-            text += "New news item published.\n"
+            summary_part += f"{self.escape_markdown(summary)}\n"
+        
+        if highlights:
+            summary_part += "\n*Highlights:*\n"
+            for highlight in highlights:
+                summary_part += f"• {self.escape_markdown(highlight)}\n"
 
         if events:
-            text += "\n*Events:*\n"
+            summary_part += "\n*Events:*\n"
             for event in events:
                 title = self.escape_markdown(event.get("title", "Event"))
                 start = self.escape_markdown(event.get("start", ""))
                 end = self.escape_markdown(event.get("end", ""))
-                text += f"• {title} \\({start} \\- {end}\\)\n"
+                summary_part += f"• {title} \\({start} \\- {end}\\)\n"
 
-        if highlights:
-            text += "\n*Highlights:*\n"
-            for highlight in highlights:
-                text += f"• {self.escape_markdown(highlight)}\n"
+        # 2. Prepare Full Content Part
+        content_part = ""
+        if full_item:
+            title = full_item.get("title", "No Title")
+            date = full_item.get("publishedDateString", "Unknown Date")
+            author = full_item.get("publishedBy", "Unknown Author")
+            raw_content = full_item.get("content", "")
 
-        print("    → Sending Telegram notification (Summary)...")
-        self.send_message(text, parse_mode="MarkdownV2")
+            # Basic HTML to text conversion
+            markdown_content = raw_content
+            markdown_content = (
+                markdown_content.replace("<br>", "\n")
+                .replace("<br/>", "\n")
+                .replace("</p>", "\n\n")
+            )
+            
+            # Strip tags for now to avoid escaping nightmares with mixed markdown
+            markdown_content = re.sub(r"<[^>]+>", "", markdown_content)
+            
+            # Unescape entities
+            replacements = {"&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&ndash;": "-", "&mdash;": "--"}
+            for k, v in replacements.items():
+                markdown_content = markdown_content.replace(k, v)
+            
+            markdown_content = re.sub(r"\n\s+\n", "\n\n", markdown_content).strip()
+            
+            content_part = f"\n*Full Content:*\n"
+            content_part += f"{self.escape_markdown(title)}\n"
+            content_part += f"_{self.escape_markdown(date)} | {self.escape_markdown(author)}_\n\n"
+            content_part += self.escape_markdown(markdown_content)
 
-        # 2. Send Attachments
+        # 3. Combine and Split (No Truncation)
+        full_message = summary_part + content_part
+        if not full_message.strip():
+            full_message = f"New news item: {self.escape_markdown(display_title)}"
+
+        # Telegram limit is 4096. We'll aim for 4000 to be safe.
+        limit = 4000
+        if len(full_message) <= limit:
+            print("    → Sending Telegram notification...")
+            self.send_message(full_message, parse_mode="MarkdownV2")
+        else:
+            print(f"    → Sending Telegram notification in multiple parts ({len(full_message)} chars)...")
+            remaining = full_message
+            part_num = 1
+            while remaining:
+                if len(remaining) <= limit:
+                    chunk = remaining
+                    remaining = ""
+                else:
+                    # Find a good split point
+                    split_at = remaining.rfind("\n", 0, limit)
+                    if split_at == -1:
+                        split_at = limit
+                    chunk = remaining[:split_at]
+                    remaining = remaining[split_at:].lstrip()
+                
+                header = f"*Part {part_num}*\n" if part_num > 1 else ""
+                self.send_message(header + chunk, parse_mode="MarkdownV2")
+                part_num += 1
+
+        # 4. Send Attachments
         if attachment_paths:
             print(f"    → Sending {len(attachment_paths)} attachments to Telegram...")
             for path in attachment_paths:
                 if path.exists():
                     self.send_document(path)
-
-        # 3. Send Full Content
-        if full_item:
-            self.send_full_content_message(full_item)
-
-    def send_full_content_message(self, full_item):
-        title = full_item.get("title", "No Title")
-        date = full_item.get("publishedDateString", "Unknown Date")
-        author = full_item.get("publishedBy", "Unknown Author")
-        raw_content = full_item.get("content", "")
-
-        # Use regex to clean up HTML - reusing logic similar to Discord Notifier
-        markdown_content = raw_content
-
-        # Basic replacements
-        markdown_content = (
-            markdown_content.replace("<br>", "\n")
-            .replace("<br/>", "\n")
-            .replace("</p>", "\n\n")
-        )
-        
-        # Simple bold/italic replacements
-        markdown_content = re.sub(r"<(strong|b)>", "*", markdown_content)
-        markdown_content = re.sub(r"</(strong|b)>", "*", markdown_content)
-        markdown_content = re.sub(r"<(em|i)>", "_", markdown_content)
-        markdown_content = re.sub(r"</(em|i)>", "_", markdown_content)
-
-        # Lists
-        markdown_content = markdown_content.replace("<ul>", "\n").replace("</ul>", "\n")
-        markdown_content = markdown_content.replace("<ol>", "\n").replace("</ol>", "\n")
-        markdown_content = markdown_content.replace("<li>", "• ").replace("</li>", "\n")
-
-        # Links - Telegram MarkdownV2 requires careful escaping, so we might just strip them or use a simpler approach
-        # For now, let's keep them simple: [text](url)
-        markdown_content = re.sub(
-            r'<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>(.*?)</a>',
-            r"[\2](\1)",
-            markdown_content,
-        )
-
-        # Strip remaining tags
-        markdown_content = re.sub(r"<[^>]+>", "", markdown_content)
-
-        # Unescape entities
-        replacements = {
-            "&nbsp;": " ",
-            "&amp;": "&",
-            "&lt;": "<",
-            "&gt;": ">",
-            "&quot;": '"',
-            "&#39;": "'",
-            "&ndash;": "-",
-            "&mdash;": "--",
-        }
-        for k, v in replacements.items():
-            markdown_content = markdown_content.replace(k, v)
-
-        # Cleanup whitespace
-        markdown_content = re.sub(r"\n\s+\n", "\n\n", markdown_content)
-        markdown_content = markdown_content.strip()
-
-        # Construct message (Plain Text)
-        full_content_message = f"{title}\n"
-        full_content_message += f"{date} | {author}\n\n"
-        
-        # We need to escape the content for MarkdownV2, but we already have some markdown characters in there
-        # from our manual conversion (like * and _). 
-        # Ideally, we should have escaped the *raw text* parts before adding the markdown syntax.
-        # However, doing that correctly with mixed HTML input is hard without a proper parser.
-        # Alternatively, we can just NOT use MarkdownV2 for the body and use just text, but that loses formatting.
-        # Or we can use the 'HTML' parse mode supported by Telegram! That's much easier for converting from HTML.
-        
-        # Let's try HTML parse mode for the content to preserve basic formatting easily.
-        # Telegram supports: <b>, <i>, <u>, <s>, <a>, <code>, <pre>
-        
-        # We need to restrict the tags to the supported ones.
-        
-        # Actually, let's stick to the previous plan but be careful.
-        # Since 'escape_markdown' escapes EVERYTHING, it will break our manually added * and _.
-        # We should probably just send the body as plain text if we can't reliably convert.
-        
-        # But wait, looking at DiscordNotifier, it uses fairly standard Markdown.
-        # Telegram's Markdown (V1) is forgiving. MarkdownV2 is strict.
-        # Let's try standard 'Markdown' (V1) or just do `escape_markdown` and loose internal formatting 
-        # but keep the structure.
-        
-        # Actually, best approach is probably to just send it as text if we are lazy,
-        # but let's try to match Discord's "Full Content" block title.
-        
-        # Let's use simple textual representation to allow for easy reading without markup errors.
-        full_content_message = f"{title}\n"
-        full_content_message += f"{date} | {author}\n\n"
-        full_content_message += markdown_content # This still has some markdown-like chars we added (*, _)
-        
-        # Clean up our manual markdown additions if we are going plain text?
-        # No, let's try to pass it as MarkdownV2 but we MUST escape everything correctly.
-        # That's hard.
-        
-        # Let's use NO parse_mode for the body content to be safe and avoid "bad request" errors due to unescaped chars.
-        # But we want the title bold. We can send the title as one message and content as another? No, too spammy.
-        
-        # Compromise: Send as plain text, but with clear separation.
-        
-        if len(full_content_message) > 4000:
-            full_content_message = full_content_message[:3997] + "..."
-
-        print("    → Sending Telegram notification (Full Content)...")
-        # Sending without parse_mode to ensure delivery even if chars are special
-        self.send_message(full_content_message)
 
     def send_schedule_update(
         self, schedule, week_str, is_new_week=False, changes=None, pupil_name=None
