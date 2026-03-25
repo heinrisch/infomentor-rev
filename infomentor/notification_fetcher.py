@@ -127,9 +127,20 @@ class NotificationFetcher:
             pupil_id=self.pupil_id
         )
 
-        new_notifications = [
-            n for n in notifications if n.get("id") not in existing_ids
-        ]
+        new_notifications = []
+        for n in notifications:
+            if n.get("id") in existing_ids:
+                continue
+
+            pupil_source_id = n.get("pupilSourceId")
+            pupil_im2_id = n.get("pupilIM2Id")
+
+            # If the notification specifies a pupil ID, verify it matches the current pupil_id
+            if pupil_source_id is not None or pupil_im2_id is not None:
+                if str(pupil_source_id) != str(self.pupil_id) and str(pupil_im2_id) != str(self.pupil_id):
+                    continue
+
+            new_notifications.append(n)
 
         if new_notifications:
             print(f"  → Found {len(new_notifications)} new notifications")
