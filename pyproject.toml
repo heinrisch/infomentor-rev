@@ -8,8 +8,8 @@ dependencies = [
     "selenium>=4.15.0",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "ruff",
     "pyright",
 ]

@@ -20,6 +20,8 @@ class NewsFetcher:
         self.files_dir = files_dir
         self.web_base_url = None
         self.use_bearer_token = False
+        self.pupil_name = None
+        self.pupil_id = None
 
     def set_web_base_url(self, url):
         self.web_base_url = url
@@ -155,26 +157,40 @@ class NewsFetcher:
         if not content:
             return
 
+        analysis = None
+        # Only summarize if we have an API key (Perplexity or Gemini)
+        if self.llm_client.perplexity_api_key or self.llm_client.gemini_api_key:
+            try:
+                analysis = self.llm_client.summarize_news_entry(content, published_date)
+                if analysis:
+                    print(f"    ✓ Generated summary ({len(analysis.get('summary', ''))} chars)")
+            except Exception as e:
+                print(f"    ✗ ERROR processing LLM analysis: {e}")
+                self.notifier.send_error(f"LLM Analysis for '{title}'", e)
+
+        # Send to notifiers even if summary is missing
         try:
-            analysis = self.llm_client.summarize_news_entry(content, published_date)
+            summary = analysis.get("summary") if analysis else None
+            events = analysis.get("events", []) if analysis else []
+            highlights = analysis.get("highlights", []) if analysis else []
 
-            if analysis:
-                summary = analysis.get("summary", "No summary available.")
-                events = analysis.get("events", [])
-                highlights = analysis.get("highlights", [])
-
-                print(f"    ✓ Generated summary ({len(summary)} chars)")
-                self.notifier.send_webhook(
-                    summary, events, highlights, title, attachment_paths, item
-                )
+            self.notifier.send_webhook(
+                summary,
+                events,
+                highlights,
+                title,
+                attachment_paths,
+                item,
+                self.pupil_name,
+            )
         except Exception as e:
-            print(f"    ✗ ERROR processing LLM analysis: {e}")
-            self.notifier.send_error(f"LLM Analysis for '{title}'", e)
+            print(f"    ✗ ERROR sending notification for '{title}': {e}")
+            self.notifier.send_error(f"Notification for '{title}'", e)
 
     def process_news(self, access_token):
         """Fetch, save, and process news items"""
         # Get existing IDs and attachments before fetching
-        existing_ids = self.storage_manager.get_existing_ids()
+        existing_ids = self.storage_manager.get_existing_ids(pupil_id=self.pupil_id)
         existing_attachments = self.storage_manager.get_existing_attachments()
 
         items = self.fetch_news(access_token=access_token)
@@ -185,7 +201,9 @@ class NewsFetcher:
             if new_items:
                 print(f"  → Found {len(new_items)} new news items")
                 for item in new_items:
-                    filename = self.storage_manager.save_news_item(item)
+                    filename = self.storage_manager.save_news_item(
+                        item, pupil_id=self.pupil_id
+                    )
                     if filename:
                         title = item.get("title", "No title")
                         published = item.get("publishedDateString", "Unknown date")

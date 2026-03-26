@@ -4,8 +4,9 @@ import re
 
 
 class LLMClient:
-    def __init__(self, api_key):
-        self.api_key = api_key
+    def __init__(self, perplexity_api_key=None, gemini_api_key=None):
+        self.perplexity_api_key = perplexity_api_key
+        self.gemini_api_key = gemini_api_key
 
     def clean_json_response(self, response_text):
         """Extract JSON from potential markdown code blocks or raw text"""
@@ -27,13 +28,26 @@ class LLMClient:
         return response_text
 
     def summarize_news_entry(self, content, published_date):
-        if not self.api_key:
-            print("    ⚠ No Perplexity API key found, skipping LLM analysis")
+        if not content:
             return None
 
+        # Only summarize if content is substantial
+        if len(content) <= 300:
+            print(f"    → Skipping LLM analysis (content too short: {len(content)} chars)")
+            return None
+
+        if self.perplexity_api_key:
+            return self.call_perplexity(content, published_date)
+        elif self.gemini_api_key:
+            return self.call_gemini(content, published_date)
+        else:
+            print("    ⚠ No LLM API key (Perplexity or Gemini) found, skipping LLM analysis")
+            return None
+
+    def call_perplexity(self, content, published_date):
         url = "https://api.perplexity.ai/chat/completions"
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {self.perplexity_api_key}",
             "Content-Type": "application/json",
         }
 
@@ -112,9 +126,95 @@ class LLMClient:
 
         except requests.exceptions.RequestException as e:
             print(f"    ✗ HTTP Error calling Perplexity API: {e}")
-            if hasattr(e, "response") and e.response is not None:
-                print(f"    Response body: {e.response.text[:500]}")
             return None
         except Exception as e:
             print(f"    ✗ Unexpected error calling Perplexity API: {e}")
+            return None
+
+    def call_gemini(self, content, published_date):
+        # Gemini 3.1 Flash Lite Preview endpoint
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key={self.gemini_api_key}"
+        headers = {"Content-Type": "application/json"}
+
+        prompt = f"""
+        You are a strict data extraction AI. You output ONLY JSON.
+        The current news item was published on: {published_date}.
+        
+        Analyze the following school news text (which may be HTML) and extract specific information.
+        
+        1. Create a concise summary highlighting important information for a parent (in Swedish).
+        2. Highlight extra important sections of information, like school ends early. 
+        3. Extract any specific events that have a date and time.
+        
+        IMPORTANT: All dates mentioned in the text (like "on Friday" or "tomorrow") must be calculated relative to the publish date: {published_date}.
+        If a year is not specified, assume it is the same year as the publish date, unless the date has already passed relative to the publish date, in which case it is the next year.
+        
+        Return ONLY a valid JSON object with this structure. Do not include any markdown formatting or explanations outside the JSON.
+        Do not include any preamble. Start directly with the JSON object.
+        {{
+            "summary": "The summary text...",
+            "highlights": [
+                "Ta med gosedjur den 11/12", 
+                "Skolan slutar 15.00 den 1/2"
+            ],
+            "events": [
+                {{
+                    "title": "Event Title",
+                    "start": "YYYY-MM-DDTHH:MM:SS",
+                    "end": "YYYY-MM-DDTHH:MM:SS", 
+                    "description": "Details about the event"
+                }}
+            ]
+        }}
+        Rules for events:
+        - If a date is mentioned without a year, assume the next occurrence of that date.
+        - If no specific time is mentioned for a date, assume 08:00:00 for start and 09:00:00 for end.
+        - Format dates strictly as ISO 8601 (YYYY-MM-DDTHH:MM:SS).
+        - If no events are found, "events" should be an empty list.
+        - Respond with only the JSON object, wrapped in three backticks (```json ... ```).
+
+        Text to analyze:
+        {content}
+        """
+
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "topK": 1,
+                "topP": 1,
+                "maxOutputTokens": 2048,
+                "response_mime_type": "application/json",
+            },
+        }
+
+        try:
+            print("    → Calling Gemini API for analysis...")
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
+
+            if response.status_code != 200:
+                print(f"    ✗ Gemini API returned status {response.status_code}")
+                print(f"    Response body: {response.text[:500]}")
+
+            response.raise_for_status()
+            print("    ✓ Gemini API response received")
+
+            response_json = response.json()
+            # Extract text from Gemini response structure: candidates[0].content.parts[0].text
+            content = response_json["candidates"][0]["content"]["parts"][0]["text"]
+            cleaned_content = self.clean_json_response(content)
+
+            try:
+                return json.loads(cleaned_content)
+            except json.JSONDecodeError as e:
+                print(f"    ✗ JSON Decode Error: {e}")
+                print(f"    Raw content: {content!r}")
+                print(f"    Cleaned content: {cleaned_content!r}")
+                return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"    ✗ HTTP Error calling Gemini API: {e}")
+            return None
+        except Exception as e:
+            print(f"    ✗ Unexpected error calling Gemini API: {e}")
             return None

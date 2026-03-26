@@ -9,6 +9,8 @@ class ScheduleFetcher:
         self.storage_manager = storage_manager
         self.notifier = notifier
         self.web_base_url: str | None = "https://hub.infomentor.se"
+        self.pupil_name = None
+        self.pupil_id = None
 
     def get_current_week_dates(self):
         """Get start (Sunday) and end (Saturday) dates for the current week"""
@@ -81,7 +83,9 @@ class ScheduleFetcher:
         week_str = start_date.strftime("%Y-%m-%d")
 
         # Load previous schedule for this week
-        previous_schedule = self.storage_manager.load_schedule(week_str)
+        previous_schedule = self.storage_manager.load_schedule(
+            week_str, pupil_id=self.pupil_id
+        )
 
         today = datetime.now().date()
         is_sunday = today.weekday() == 6
@@ -89,14 +93,20 @@ class ScheduleFetcher:
         # If it's Sunday, we always post the full schedule
         if is_sunday:
             # Check if we already posted today to avoid spamming if script restarts
-            last_sunday_post = self.storage_manager.get_last_sunday_post()
+            last_sunday_post = self.storage_manager.get_last_sunday_post(
+                pupil_id=self.pupil_id
+            )
             if last_sunday_post != today.strftime("%Y-%m-%d"):
                 print("  → It's Sunday, posting full schedule...")
                 self.notifier.send_schedule_update(
-                    current_schedule, week_str, is_new_week=True
+                    current_schedule, week_str, is_new_week=True, pupil_name=self.pupil_name
                 )
-                self.storage_manager.save_schedule(week_str, current_schedule)
-                self.storage_manager.set_last_sunday_post(today.strftime("%Y-%m-%d"))
+                self.storage_manager.save_schedule(
+                    week_str, current_schedule, pupil_id=self.pupil_id
+                )
+                self.storage_manager.set_last_sunday_post(
+                    today.strftime("%Y-%m-%d"), pupil_id=self.pupil_id
+                )
                 return
 
         # If we have a previous schedule, check for changes
@@ -105,15 +115,19 @@ class ScheduleFetcher:
             if changes:
                 print(f"  → Found {len(changes)} changes in schedule")
                 self.notifier.send_schedule_update(
-                    current_schedule, week_str, changes=changes
+                    current_schedule, week_str, changes=changes, pupil_name=self.pupil_name
                 )
-                self.storage_manager.save_schedule(week_str, current_schedule)
+                self.storage_manager.save_schedule(
+                    week_str, current_schedule, pupil_id=self.pupil_id
+                )
             else:
                 print("  → No changes in schedule")
         else:
             # First time seeing this week's schedule (and not Sunday), save it
             print("  → New week detected (or first run), saving baseline.")
-            self.storage_manager.save_schedule(week_str, current_schedule)
+            self.storage_manager.save_schedule(
+                week_str, current_schedule, pupil_id=self.pupil_id
+            )
 
     def detect_changes(self, old_schedule, new_schedule):
         """Compare two schedules and return list of changes"""

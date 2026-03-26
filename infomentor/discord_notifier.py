@@ -30,188 +30,6 @@ class DiscordNotifier:
             print(f"    ⚠ Error generating Google Calendar URL: {e}")
             return None
 
-    def send_summary_message(self, summary, events, news_title, attachment_paths=None):
-        if not self.webhook_url:
-            print("    ⚠ No Discord webhook URL found, skipping notification")
-            return
-
-        # --- Message 1: Summary & Events ---
-        summary_message = summary + "\n\n"
-
-        if events:
-            summary_message += "Events:\n"
-            for event in events:
-                gcal_url = self.generate_google_calendar_url(event)
-                summary_message += f"- [{event['title']} ({event['start']} - {event['end']})]({gcal_url})\n"
-
-        embed1 = {
-            "title": f"News: {news_title}",
-            "description": summary_message,
-            "color": 3447003,
-        }
-
-        data1 = {
-            "embeds": [embed1],
-            "username": "InfoMentor News",
-            "avatar_url": "https://www.infomentor.se/wp-content/uploads/2024/03/im-logo-full.png",
-        }
-
-        files = {}
-        opened_files = []
-
-        # Add physical attachments to Message 1
-        if attachment_paths:
-            for i, path in enumerate(attachment_paths):
-                try:
-                    if path.exists():
-                        f = open(path, "rb")
-                        opened_files.append(f)
-                        files[f"attachment_{i}"] = (
-                            path.name,
-                            f,
-                            "application/octet-stream",
-                        )
-                except Exception as e:
-                    print(f"    ⚠ Could not attach file {path}: {e}")
-
-        try:
-            print("    → Sending Discord notification (Summary)...")
-            if files:
-                response = requests.post(
-                    self.webhook_url,
-                    data={"payload_json": json.dumps(data1)},
-                    files=files,
-                    timeout=60,
-                )
-            else:
-                response = requests.post(self.webhook_url, json=data1, timeout=30)
-            response.raise_for_status()
-            print("    ✓ Summary sent to Discord")
-        except Exception as e:
-            print(f"    ✗ Error sending summary to Discord: {e}")
-            if "response" in locals() and hasattr(response, "text"):
-                print(f"    Response: {response.text[:200]}")
-        finally:
-            for f in opened_files:
-                f.close()
-
-    def send_full_content_message(self, full_item):
-        if not self.webhook_url or not full_item:
-            return
-
-        # --- Message 2: Full Content ---
-        title = full_item.get("title", "No Title")
-        date = full_item.get("publishedDateString", "Unknown Date")
-        author = full_item.get("publishedBy", "Unknown Author")
-        raw_content = full_item.get("content", "")
-
-        # Convert HTML to Markdown for Discord
-        markdown_content = raw_content
-
-        # Basic replacements
-        markdown_content = (
-            markdown_content.replace("<br>", "\n")
-            .replace("<br/>", "\n")
-            .replace("</p>", "\n\n")
-        )
-        markdown_content = markdown_content.replace("<strong>", "**").replace(
-            "</strong>", "**"
-        )
-        markdown_content = markdown_content.replace("<b>", "**").replace("</b>", "**")
-        markdown_content = markdown_content.replace("<em>", "*").replace("</em>", "*")
-        markdown_content = markdown_content.replace("<i>", "*").replace("</i>", "*")
-
-        # Lists
-        markdown_content = markdown_content.replace("<ul>", "\n").replace("</ul>", "\n")
-        markdown_content = markdown_content.replace("<ol>", "\n").replace("</ol>", "\n")
-        markdown_content = markdown_content.replace("<li>", "- ").replace("</li>", "\n")
-
-        # Links
-        markdown_content = re.sub(
-            r'<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>(.*?)</a>',
-            r"[\2](\1)",
-            markdown_content,
-        )
-
-        # Strip remaining tags
-        markdown_content = re.sub(r"<[^>]+>", "", markdown_content)
-
-        # Unescape entities
-        replacements = {
-            "&nbsp;": " ",
-            "&amp;": "&",
-            "&lt;": "<",
-            "&gt;": ">",
-            "&quot;": '"',
-            "&#39;": "'",
-            "&ndash;": "-",
-            "&mdash;": "--",
-        }
-        for k, v in replacements.items():
-            markdown_content = markdown_content.replace(k, v)
-
-        # Cleanup whitespace
-        markdown_content = re.sub(r"\n\s+\n", "\n\n", markdown_content)
-        markdown_content = markdown_content.strip()
-
-        # Construct message
-        full_content_message = f"**{title}**\n"
-        full_content_message += f"*{date} | {author}*\n\n"
-        full_content_message += markdown_content
-
-        # Truncate if too long (Discord embed limit is 4096)
-        if len(full_content_message) > 4000:
-            full_content_message = full_content_message[:3997] + "..."
-
-        embed2 = {
-            "title": "Full Content",
-            "description": full_content_message,
-            "color": 3447003,
-        }
-
-        data2 = {
-            "embeds": [embed2],
-            "username": "InfoMentor News",
-            "avatar_url": "https://www.infomentor.se/wp-content/uploads/2024/03/im-logo-full.png",
-        }
-
-        try:
-            print("    → Sending Discord notification (Full Content)...")
-            response = requests.post(self.webhook_url, json=data2, timeout=30)
-            response.raise_for_status()
-            print("    ✓ Full content sent to Discord")
-        except Exception as e:
-            print(f"    ✗ Error sending full content to Discord: {e}")
-
-    def send_highlights_message(self, highlights):
-        if not self.webhook_url or not highlights:
-            return
-
-        # --- Message 3: Highlights ---
-        highlights_text = "**Viktigt:**\n"
-        for highlight in highlights:
-            highlights_text += f"• {highlight}\n"
-
-        embed3 = {
-            "title": "Highlights",
-            "description": highlights_text,
-            "color": 15158332,  # Red/Orange
-        }
-
-        data3 = {
-            "embeds": [embed3],
-            "username": "InfoMentor News",
-            "avatar_url": "https://www.infomentor.se/wp-content/uploads/2024/03/im-logo-full.png",
-        }
-
-        try:
-            print("    → Sending Discord notification (Highlights)...")
-            response = requests.post(self.webhook_url, json=data3, timeout=30)
-            response.raise_for_status()
-            print("    ✓ Highlights sent to Discord")
-        except Exception as e:
-            print(f"    ✗ Error sending highlights to Discord: {e}")
-
     def send_webhook(
         self,
         summary,
@@ -220,25 +38,167 @@ class DiscordNotifier:
         news_title,
         attachment_paths=None,
         full_item=None,
+        pupil_name=None,
     ):
-        self.send_summary_message(summary, events, news_title, attachment_paths)
-        if full_item:
-            self.send_full_content_message(full_item)
-        if highlights:
-            self.send_highlights_message(highlights)
+        if not self.webhook_url:
+            print("    ⚠ No Discord webhook URL found, skipping notification")
+            return
 
-    def send_schedule_update(self, schedule, week_str, is_new_week=False, changes=None):
+        def split_text(text, limit=4000):
+            """Split text into chunks that fit within Discord limits"""
+            chunks = []
+            while len(text) > limit:
+                # Find a good place to split (newline)
+                split_at = text.rfind("\n", 0, limit)
+                if split_at == -1:
+                    split_at = limit
+                chunks.append(text[:split_at])
+                text = text[split_at:].lstrip()
+            chunks.append(text)
+            return chunks
+
+        def send_discord_payload(embeds, files=None):
+            data = {
+                "embeds": embeds,
+                "username": "InfoMentor News",
+                "avatar_url": "https://www.infomentor.se/wp-content/uploads/2024/03/im-logo-full.png",
+            }
+            opened_files = []
+            try:
+                print(f"    → Sending Discord notification ({len(embeds)} embeds)...")
+                if files:
+                    payload_files = {}
+                    for i, path in enumerate(files):
+                        if path.exists():
+                            f = open(path, "rb")
+                            opened_files.append(f)
+                            payload_files[f"attachment_{i}"] = (path.name, f, "application/octet-stream")
+                    
+                    response = requests.post(
+                        self.webhook_url,
+                        data={"payload_json": json.dumps(data)},
+                        files=payload_files,
+                        timeout=60,
+                    )
+                else:
+                    response = requests.post(self.webhook_url, json=data, timeout=30)
+                response.raise_for_status()
+                return True
+            except Exception as e:
+                print(f"    ✗ Error sending to Discord: {e}")
+                return False
+            finally:
+                for f in opened_files:
+                    f.close()
+
+        all_embeds = []
+        
+        # --- Embed 1: Summary, Events & Highlights ---
+        summary_text = ""
+        if summary:
+            summary_text = summary + "\n\n"
+
+        if highlights:
+            summary_text += "**Highlights:**\n"
+            for highlight in highlights:
+                summary_text += f"• {highlight}\n"
+            summary_text += "\n"
+
+        if events:
+            summary_text += "**Events:**\n"
+            for event in events:
+                gcal_url = self.generate_google_calendar_url(event)
+                summary_text += f"- [{event['title']} ({event['start']} - {event['end']})]({gcal_url})\n"
+
+        if not summary_text and not full_item:
+            summary_text = "New news item published."
+
+        title = f"News: {news_title}"
+        if pupil_name:
+            title = f"[{pupil_name}] {title}"
+
+        if summary_text:
+            chunks = split_text(summary_text)
+            for i, chunk in enumerate(chunks):
+                all_embeds.append({
+                    "title": title if i == 0 else f"{title} (cont.)",
+                    "description": chunk,
+                    "color": 3447003,
+                })
+
+        # --- Embed 2+: Full Content ---
+        if full_item:
+            f_title = full_item.get("title", "No Title")
+            date = full_item.get("publishedDateString", "Unknown Date")
+            author = full_item.get("publishedBy", "Unknown Author")
+            raw_content = full_item.get("content", "")
+
+            # Convert HTML to Markdown
+            markdown_content = raw_content
+            markdown_content = markdown_content.replace("<br>", "\n").replace("<br/>", "\n").replace("</p>", "\n\n")
+            markdown_content = markdown_content.replace("<strong>", "**").replace("</strong>", "**")
+            markdown_content = markdown_content.replace("<b>", "**").replace("</b>", "**")
+            markdown_content = markdown_content.replace("<em>", "*").replace("</em>", "*")
+            markdown_content = markdown_content.replace("<i>", "*").replace("</i>", "*")
+            markdown_content = markdown_content.replace("<ul>", "\n").replace("</ul>", "\n")
+            markdown_content = markdown_content.replace("<ol>", "\n").replace("</ol>", "\n")
+            markdown_content = markdown_content.replace("<li>", "- ").replace("</li>", "\n")
+            markdown_content = re.sub(r'<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>(.*?)</a>', r"[\2](\1)", markdown_content)
+            markdown_content = re.sub(r"<[^>]+>", "", markdown_content)
+            replacements = {"&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&ndash;": "-", "&mdash;": "--"}
+            for k, v in replacements.items():
+                markdown_content = markdown_content.replace(k, v)
+            markdown_content = re.sub(r"\n\s+\n", "\n\n", markdown_content).strip()
+
+            full_desc_start = f"**{f_title}**\n*{date} | {author}*\n\n"
+            full_text = full_desc_start + markdown_content
+            
+            chunks = split_text(full_text)
+            for i, chunk in enumerate(chunks):
+                all_embeds.append({
+                    "title": "Full Content" if i == 0 and summary_text else (f"Full Content (cont. {i})" if summary_text else (f_title if i == 0 else f"{f_title} (cont. {i})")),
+                    "description": chunk,
+                    "color": 3447003,
+                })
+
+        # Send in batches of 10 embeds (Discord limit) and stay under 6000 total chars
+        current_batch = []
+        current_char_count = 0
+        
+        for i, embed in enumerate(all_embeds):
+            embed_len = len(embed["description"]) + len(embed["title"])
+            if len(current_batch) >= 10 or (current_char_count + embed_len > 5500):
+                # Send current batch
+                send_discord_payload(current_batch, attachment_paths if i == len(current_batch) else None)
+                current_batch = []
+                current_char_count = 0
+                # Attachments only on the first message
+                attachment_paths = None
+            
+            current_batch.append(embed)
+            current_char_count += embed_len
+
+        if current_batch:
+            send_discord_payload(current_batch, attachment_paths)
+
+    def send_schedule_update(
+        self, schedule, week_str, is_new_week=False, changes=None, pupil_name=None
+    ):
         if not self.webhook_url:
             return
 
-        title = f"📅 Schedule for week of {week_str}"
+        title_text = f"Schedule for week of {week_str}"
         if is_new_week:
+            title = f"📅 {title_text}"
             description = "Here is the schedule for the upcoming week."
             color = 3447003  # Blue
         else:
             title = f"⚠️ Schedule Update: Week of {week_str}"
             description = "The schedule has been updated!"
             color = 15158332  # Red/Orange
+
+        if pupil_name:
+            title = f"[{pupil_name}] {title}"
 
         fields = []
 
@@ -315,7 +275,7 @@ class DiscordNotifier:
         except Exception as e:
             print(f"    ✗ Error sending schedule to Discord: {e}")
 
-    def send_notification(self, notification):
+    def send_notification(self, notification, pupil_name=None):
         if not self.webhook_url:
             return
 
@@ -330,8 +290,12 @@ class DiscordNotifier:
             full_url = f"https://hub.infomentor.se{url}"
             description += f"[Open in InfoMentor]({full_url})"
 
+        embed_title = f"🔔 {title}"
+        if pupil_name:
+            embed_title = f"[{pupil_name}] {embed_title}"
+
         embed = {
-            "title": f"🔔 {title}",
+            "title": embed_title,
             "description": description,
             "color": 10181046,  # Purple
             "footer": {"text": f"Sent: {date_sent}"},
@@ -349,6 +313,53 @@ class DiscordNotifier:
             print("    ✓ Notification sent to Discord")
         except Exception as e:
             print(f"    ✗ Error sending notification to Discord: {e}")
+
+    def send_attendance_update(self, new_records, pupil_name=None):
+        if not self.webhook_url or not new_records:
+            return
+
+        title = "Attendance Update"
+        if pupil_name:
+            title = f"[{pupil_name}] {title}"
+
+        description = f"Found {len(new_records)} new attendance records."
+        
+        fields = []
+        for record in new_records:
+            date = record.get("dateString", "Unknown Date")
+            lesson = record.get("lessonName", "Unknown Lesson")
+            status = record.get("registrationTypeName", "Unknown Status")
+            comment = record.get("comment", "")
+            
+            value = f"**Status:** {status}\n**Lesson:** {lesson}"
+            if comment:
+                value += f"\n**Comment:** {comment}"
+                
+            fields.append({
+                "name": date,
+                "value": value,
+                "inline": False
+            })
+
+        embed = {
+            "title": f"📝 {title}",
+            "description": description,
+            "color": 15105570,  # Orange/Yellow
+            "fields": fields[:25] # Discord limit is 25 fields
+        }
+
+        data = {
+            "embeds": [embed],
+            "username": "InfoMentor Attendance",
+            "avatar_url": "https://www.infomentor.se/wp-content/uploads/2024/03/im-logo-full.png",
+        }
+
+        try:
+            print("    → Sending Discord attendance notification...")
+            requests.post(self.webhook_url, json=data, timeout=30)
+            print("    ✓ Attendance update sent to Discord")
+        except Exception as e:
+            print(f"    ✗ Error sending attendance update to Discord: {e}")
 
     def send_error(self, context, error_message):
         if not self.webhook_url:

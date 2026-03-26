@@ -10,12 +10,18 @@ class StorageManager:
         self.output_dir.mkdir(exist_ok=True)
         self.files_dir.mkdir(exist_ok=True)
 
-    def get_existing_ids(self):
-        """Get set of existing news item IDs"""
+    def get_existing_ids(self, pupil_id=None):
+        """Get set of existing news item IDs for a specific pupil (or all if None)"""
         existing_ids = set()
-        for file in self.output_dir.glob("news_*.json"):
+        pattern = f"news_{pupil_id}_*.json" if pupil_id else "news_*.json"
+        for file in self.output_dir.glob(pattern):
             try:
-                news_id = int(file.stem.split("_")[1])
+                # Filename format: news_{pupil_id}_{news_id}.json or news_{news_id}.json
+                parts = file.stem.split("_")
+                if len(parts) >= 3:
+                    news_id = int(parts[2])
+                else:
+                    news_id = int(parts[1])
                 existing_ids.add(news_id)
             except (ValueError, IndexError):
                 pass
@@ -25,14 +31,17 @@ class StorageManager:
         """Get set of existing attachment filenames"""
         return {f.name for f in self.files_dir.iterdir() if f.is_file()}
 
-    def save_news_item(self, item):
+    def save_news_item(self, item, pupil_id=None):
         """Save a single news item to JSON file"""
         news_id = item.get("id")
         if not news_id:
             print("    ✗ ERROR: News item missing ID, cannot save")
             return None
 
-        filename = self.output_dir / f"news_{news_id}.json"
+        if pupil_id:
+            filename = self.output_dir / f"news_{pupil_id}_{news_id}.json"
+        else:
+            filename = self.output_dir / f"news_{news_id}.json"
 
         try:
             with open(filename, "w", encoding="utf-8") as f:
@@ -42,9 +51,13 @@ class StorageManager:
             print(f"    ✗ ERROR: Failed to save news item {news_id}: {e}")
             return None
 
-    def save_schedule(self, week_str, schedule_data):
-        """Save schedule for a specific week"""
-        filename = self.output_dir / f"schedule_{week_str}.json"
+    def save_schedule(self, week_str, schedule_data, pupil_id=None):
+        """Save schedule for a specific week and pupil"""
+        if pupil_id:
+            filename = self.output_dir / f"schedule_{pupil_id}_{week_str}.json"
+        else:
+            filename = self.output_dir / f"schedule_{week_str}.json"
+            
         try:
             with open(filename, "w", encoding="utf-8") as f:
                 json.dump(schedule_data, f, ensure_ascii=False, indent=2)
@@ -53,9 +66,13 @@ class StorageManager:
             print(f"    ✗ ERROR: Failed to save schedule: {e}")
             return False
 
-    def load_schedule(self, week_str):
-        """Load schedule for a specific week"""
-        filename = self.output_dir / f"schedule_{week_str}.json"
+    def load_schedule(self, week_str, pupil_id=None):
+        """Load schedule for a specific week and pupil"""
+        if pupil_id:
+            filename = self.output_dir / f"schedule_{pupil_id}_{week_str}.json"
+        else:
+            filename = self.output_dir / f"schedule_{week_str}.json"
+            
         if not filename.exists():
             return None
 
@@ -66,9 +83,13 @@ class StorageManager:
             print(f"    ✗ ERROR: Failed to load schedule: {e}")
             return None
 
-    def get_last_sunday_post(self):
-        """Get the date of the last Sunday schedule post"""
-        state_file = self.output_dir / "schedule_state.json"
+    def get_last_sunday_post(self, pupil_id=None):
+        """Get the date of the last Sunday schedule post for a pupil"""
+        if pupil_id:
+            state_file = self.output_dir / f"schedule_state_{pupil_id}.json"
+        else:
+            state_file = self.output_dir / "schedule_state.json"
+            
         if not state_file.exists():
             return None
         try:
@@ -78,9 +99,13 @@ class StorageManager:
         except:
             return None
 
-    def set_last_sunday_post(self, date_str):
-        """Set the date of the last Sunday schedule post"""
-        state_file = self.output_dir / "schedule_state.json"
+    def set_last_sunday_post(self, date_str, pupil_id=None):
+        """Set the date of the last Sunday schedule post for a pupil"""
+        if pupil_id:
+            state_file = self.output_dir / f"schedule_state_{pupil_id}.json"
+        else:
+            state_file = self.output_dir / "schedule_state.json"
+            
         data = {}
         if state_file.exists():
             try:
@@ -96,24 +121,32 @@ class StorageManager:
         except:
             pass
 
-    def get_existing_notification_ids(self):
-        """Get set of existing notification IDs"""
+    def get_existing_notification_ids(self, pupil_id=None):
+        """Get set of existing notification IDs for a pupil"""
         existing_ids = set()
-        for file in self.output_dir.glob("notification_*.json"):
+        pattern = f"notification_{pupil_id}_*.json" if pupil_id else "notification_*.json"
+        for file in self.output_dir.glob(pattern):
             try:
-                notif_id = int(file.stem.split("_")[1])
+                parts = file.stem.split("_")
+                if len(parts) >= 3:
+                    notif_id = int(parts[2])
+                else:
+                    notif_id = int(parts[1])
                 existing_ids.add(notif_id)
             except (ValueError, IndexError):
                 pass
         return existing_ids
 
-    def save_notification(self, notification):
+    def save_notification(self, notification, pupil_id=None):
         """Save a single notification to JSON file"""
         notif_id = notification.get("id")
         if not notif_id:
             return None
 
-        filename = self.output_dir / f"notification_{notif_id}.json"
+        if pupil_id:
+            filename = self.output_dir / f"notification_{pupil_id}_{notif_id}.json"
+        else:
+            filename = self.output_dir / f"notification_{notif_id}.json"
 
         try:
             with open(filename, "w", encoding="utf-8") as f:
@@ -122,3 +155,46 @@ class StorageManager:
         except Exception as e:
             print(f"    ✗ ERROR: Failed to save notification {notif_id}: {e}")
             return None
+
+    def save_attendance(self, attendance_data, pupil_id=None):
+        """Save attendance data for a pupil"""
+        if pupil_id:
+            filename = self.output_dir / f"attendance_{pupil_id}.json"
+        else:
+            filename = self.output_dir / "attendance.json"
+            
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(attendance_data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to save attendance: {e}")
+            return False
+
+    def load_attendance(self, pupil_id=None):
+        """Load attendance data for a pupil"""
+        if pupil_id:
+            filename = self.output_dir / f"attendance_{pupil_id}.json"
+        else:
+            filename = self.output_dir / "attendance.json"
+            
+        if not filename.exists():
+            return None
+
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to load attendance: {e}")
+            return None
+
+    def save_pupils(self, pupils_data):
+        """Save pupils information to JSON file"""
+        filename = self.output_dir / "pupils.json"
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(pupils_data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to save pupils: {e}")
+            return False

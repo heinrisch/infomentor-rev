@@ -4,6 +4,7 @@ from datetime import datetime
 
 import requests
 
+from .attendance_fetcher import AttendanceFetcher
 from .auth import SessionManager, TokenManager
 from .config import Config
 from .discord_notifier import DiscordNotifier
@@ -11,6 +12,7 @@ from .llm_client import LLMClient
 from .news_fetcher import NewsFetcher
 from .notification_fetcher import NotificationFetcher
 from .notifier import CompositeNotifier
+from .pupil_fetcher import PupilFetcher
 from .schedule_fetcher import ScheduleFetcher
 from .storage import StorageManager
 from .telegram_notifier import TelegramNotifier
@@ -30,7 +32,9 @@ class InfoMentorFetcher:
         self.storage_manager = StorageManager(
             self.config.output_dir, self.config.files_dir
         )
-        self.llm_client = LLMClient(self.config.perplexity_api_key)
+        self.llm_client = LLMClient(
+            self.config.perplexity_api_key, self.config.gemini_api_key
+        )
 
         notifiers = []
         if self.config.discord_webhook_url:
@@ -56,8 +60,18 @@ class InfoMentorFetcher:
         self.schedule_fetcher = ScheduleFetcher(
             self.session, self.storage_manager, self.notifier
         )
-        self.notification_fetcher = NotificationFetcher(
+        self.attendance_fetcher = AttendanceFetcher(
             self.session, self.storage_manager, self.notifier
+        )
+        self.notification_fetcher = NotificationFetcher(
+            self.session,
+            self.storage_manager,
+            self.notifier,
+            self.llm_client,
+            self.news_fetcher,
+        )
+        self.pupil_fetcher = PupilFetcher(
+            self.session, self.storage_manager
         )
 
     def fetch_and_process(self):
@@ -69,41 +83,89 @@ class InfoMentorFetcher:
         # Validate and refresh token if needed
         if not self.token_manager.validate_and_refresh_token():
             print("\n✗ ABORTING: Token validation failed")
+            self.notifier.send_error("Token Validation", "Failed to validate or refresh token.")
             return
 
         # Establish web session using SSO
         if not self.session_manager.establish_web_session():
             print("\n✗ ABORTING: Could not establish web session")
+            self.notifier.send_error("Web Session Establishment", "Failed to establish web session via SSO.")
             return
 
         # Update components with web base url
         self.news_fetcher.set_web_base_url(self.session_manager.web_base_url)
         self.news_fetcher.use_bearer_token = self.session_manager.use_bearer_token
         self.schedule_fetcher.web_base_url = self.session_manager.web_base_url
+        self.attendance_fetcher.web_base_url = self.session_manager.web_base_url
         self.notification_fetcher.web_base_url = self.session_manager.web_base_url
+        self.pupil_fetcher.web_base_url = self.session_manager.web_base_url
 
-        # Process News
+        # 1. Fetch pupils initially to know who we're dealing with
         try:
-            self.news_fetcher.process_news(
-                access_token=self.token_manager.get_access_token()
-            )
+            pupils = self.pupil_fetcher.process_pupils()
+            if not pupils:
+                print("  ⚠ No pupils found, nothing to process.")
+                return
         except Exception as e:
-            print(f"  ✗ ERROR processing news: {e}")
-            self.notifier.send_error("Processing News", e)
+            print(f"  ✗ ERROR processing pupil list: {e}")
+            self.notifier.send_error("Initial Pupil List Fetch", e)
+            return
 
-        # Process Schedule
-        try:
-            self.schedule_fetcher.process_schedule()
-        except Exception as e:
-            print(f"  ✗ ERROR processing schedule: {e}")
-            self.notifier.send_error("Processing Schedule", e)
+        # 2. Iterate over each pupil
+        for i, pupil in enumerate(pupils):
+            pupil_name = pupil.get("name", f"Pupil {i+1}")
+            pupil_id = pupil.get("id")
+            switch_url = pupil.get("switch_url") or pupil.get("switchPupilUrl")
 
-        # Process Notifications
-        try:
-            self.notification_fetcher.process_notifications()
-        except Exception as e:
-            print(f"  ✗ ERROR processing notifications: {e}")
-            self.notifier.send_error("Processing Notifications", e)
+            print(f"\n--- Processing Pupil: {pupil_name} (ID: {pupil_id}) ---")
+
+            # Update fetchers with current pupil name and ID
+            self.news_fetcher.pupil_name = pupil_name
+            self.news_fetcher.pupil_id = pupil_id
+            self.schedule_fetcher.pupil_name = pupil_name
+            self.schedule_fetcher.pupil_id = pupil_id
+            self.attendance_fetcher.pupil_name = pupil_name
+            self.attendance_fetcher.pupil_id = pupil_id
+            self.notification_fetcher.pupil_name = pupil_name
+            self.notification_fetcher.pupil_id = pupil_id
+
+            # Switch context if needed
+            if switch_url:
+                if not self.session_manager.switch_pupil(switch_url):
+                    print(f"  ✗ Skipping {pupil_name} due to switch failure")
+                    continue
+            else:
+                print(f"  ⚠ No switch URL for {pupil_name}, proceeding with current context")
+
+            # Process News
+            try:
+                self.news_fetcher.process_news(
+                    access_token=self.token_manager.get_access_token()
+                )
+            except Exception as e:
+                print(f"  ✗ ERROR processing news for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing News ({pupil_name})", e)
+
+            # Process Schedule
+            try:
+                self.schedule_fetcher.process_schedule()
+            except Exception as e:
+                print(f"  ✗ ERROR processing schedule for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Schedule ({pupil_name})", e)
+
+            # Process Attendance
+            try:
+                self.attendance_fetcher.process_attendance()
+            except Exception as e:
+                print(f"  ✗ ERROR processing attendance for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Attendance ({pupil_name})", e)
+
+            # Process Notifications
+            try:
+                self.notification_fetcher.process_notifications()
+            except Exception as e:
+                print(f"  ✗ ERROR processing notifications for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Notifications ({pupil_name})", e)
 
         print(f"\n{'='*60}\n")
 

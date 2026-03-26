@@ -10,20 +10,38 @@ class CompositeNotifier:
         news_title,
         attachment_paths=None,
         full_item=None,
+        pupil_name=None,
     ):
         for notifier in self.notifiers:
             notifier.send_webhook(
-                summary, events, highlights, news_title, attachment_paths, full_item
+                summary,
+                events,
+                highlights,
+                news_title,
+                attachment_paths,
+                full_item,
+                pupil_name,
             )
 
-    def send_schedule_update(self, schedule, week_str, is_new_week=False, changes=None):
+    def send_schedule_update(
+        self, schedule, week_str, is_new_week=False, changes=None, pupil_name=None
+    ):
         for notifier in self.notifiers:
-            notifier.send_schedule_update(schedule, week_str, is_new_week, changes)
+            notifier.send_schedule_update(
+                schedule, week_str, is_new_week, changes, pupil_name
+            )
 
-    def send_notification(self, notification):
+    def send_notification(self, notification, pupil_name=None):
         for notifier in self.notifiers:
-            notifier.send_notification(notification)
+            notifier.send_notification(notification, pupil_name)
+
+    def send_attendance_update(self, new_records, pupil_name=None):
+        for notifier in self.notifiers:
+            notifier.send_attendance_update(new_records, pupil_name)
 
     def send_error(self, context, error_message):
         for notifier in self.notifiers:
-            notifier.send_error(context, error_message)
+            try:
+                notifier.send_error(context, error_message)
+            except Exception as e:
+                print(f"    ✗ Error sending error notification via {notifier.__class__.__name__}: {e}")
