@@ -1,6 +1,7 @@
 import requests
 import json
 import re
+import time
 
 
 class LLMClient:
@@ -188,33 +189,52 @@ class LLMClient:
             },
         }
 
-        try:
-            print("    → Calling Gemini API for analysis...")
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+        max_retries = 5
+        retry_delay = 10
 
-            if response.status_code != 200:
-                print(f"    ✗ Gemini API returned status {response.status_code}")
-                print(f"    Response body: {response.text[:500]}")
-
-            response.raise_for_status()
-            print("    ✓ Gemini API response received")
-
-            response_json = response.json()
-            # Extract text from Gemini response structure: candidates[0].content.parts[0].text
-            content = response_json["candidates"][0]["content"]["parts"][0]["text"]
-            cleaned_content = self.clean_json_response(content)
-
+        for attempt in range(max_retries):
             try:
-                return json.loads(cleaned_content)
-            except json.JSONDecodeError as e:
-                print(f"    ✗ JSON Decode Error: {e}")
-                print(f"    Raw content: {content!r}")
-                print(f"    Cleaned content: {cleaned_content!r}")
-                return None
+                if attempt > 0:
+                    print(f"    → Retrying Gemini API call (Attempt {attempt + 1}/{max_retries})...")
+                else:
+                    print("    → Calling Gemini API for analysis...")
+                    
+                response = requests.post(url, json=payload, headers=headers, timeout=60)
 
-        except requests.exceptions.RequestException as e:
-            print(f"    ✗ HTTP Error calling Gemini API: {e}")
-            return None
-        except Exception as e:
-            print(f"    ✗ Unexpected error calling Gemini API: {e}")
-            return None
+                if response.status_code != 200:
+                    print(f"    ✗ Gemini API returned status {response.status_code}")
+                    print(f"    Response body: {response.text[:500]}")
+                    
+                    if response.status_code in (503, 429, 500, 502, 504) and attempt < max_retries - 1:
+                        print(f"    ⚠ Service Unavailable or Rate Limited. Retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                        continue
+
+                response.raise_for_status()
+                print("    ✓ Gemini API response received")
+
+                response_json = response.json()
+                # Extract text from Gemini response structure: candidates[0].content.parts[0].text
+                extracted_content = response_json["candidates"][0]["content"]["parts"][0]["text"]
+                cleaned_content = self.clean_json_response(extracted_content)
+
+                try:
+                    return json.loads(cleaned_content)
+                except json.JSONDecodeError as e:
+                    print(f"    ✗ JSON Decode Error: {e}")
+                    print(f"    Raw content: {extracted_content!r}")
+                    print(f"    Cleaned content: {cleaned_content!r}")
+                    return None
+
+            except requests.exceptions.RequestException as e:
+                print(f"    ✗ HTTP Error calling Gemini API: {e}")
+                if attempt < max_retries - 1:
+                    print(f"    ⚠ Network error. Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    continue
+                return None
+            except Exception as e:
+                print(f"    ✗ Unexpected error calling Gemini API: {e}")
+                return None
+                
+        return None
