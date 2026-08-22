@@ -17,6 +17,14 @@ from .schedule_fetcher import ScheduleFetcher
 from .storage import StorageManager
 from .telegram_notifier import TelegramNotifier
 
+# Retry schedule for critical fetch failures (token/session/pupil-list).
+# Attempt 1 runs immediately; retries wait 10 min, then 20 min, then 60 min.
+RETRY_DELAY_SECONDS = [10 * 60, 20 * 60, 60 * 60]
+
+
+class CriticalFetchError(Exception):
+    """Raised when a critical step (auth/session/pupil-list) fails."""
+
 
 class InfoMentorFetcher:
     def __init__(self):
@@ -83,14 +91,12 @@ class InfoMentorFetcher:
         # Validate and refresh token if needed
         if not self.token_manager.validate_and_refresh_token():
             print("\n✗ ABORTING: Token validation failed")
-            self.notifier.send_error("Token Validation", "Failed to validate or refresh token.")
-            return
+            raise CriticalFetchError("Failed to validate or refresh token.")
 
         # Establish web session using SSO
         if not self.session_manager.establish_web_session():
             print("\n✗ ABORTING: Could not establish web session")
-            self.notifier.send_error("Web Session Establishment", "Failed to establish web session via SSO.")
-            return
+            raise CriticalFetchError("Failed to establish web session via SSO.")
 
         # Update components with web base url
         self.news_fetcher.set_web_base_url(self.session_manager.web_base_url)
@@ -108,8 +114,7 @@ class InfoMentorFetcher:
                 return
         except Exception as e:
             print(f"  ✗ ERROR processing pupil list: {e}")
-            self.notifier.send_error("Initial Pupil List Fetch", e)
-            return
+            raise CriticalFetchError(f"Error processing pupil list: {e}")
 
         # 2. Iterate over each pupil
         for i, pupil in enumerate(pupils):
@@ -169,6 +174,36 @@ class InfoMentorFetcher:
 
         print(f"\n{'='*60}\n")
 
+    def fetch_with_retry(self):
+        """
+        Run a single fetch cycle, retrying on critical failures.
+
+        Attempt 1 runs immediately; retries wait 10 min, then 20 min, then
+        60 min (4 attempts total). Only after all 4 fail is a single combined
+        notification sent, containing every attempt's error.
+        """
+        errors = []
+        total_attempts = len(RETRY_DELAY_SECONDS) + 1
+
+        for attempt in range(total_attempts):
+            try:
+                self.fetch_and_process()
+                return True
+            except Exception as e:
+                errors.append(f"Attempt {attempt + 1}: {e}")
+                if attempt < len(RETRY_DELAY_SECONDS):
+                    delay = RETRY_DELAY_SECONDS[attempt]
+                    print(f"  ⚠ Attempt {attempt + 1}/{total_attempts} failed: {e}")
+                    print(f"  ⚠ Retrying in {delay // 60} min...")
+                    time.sleep(delay)
+                else:
+                    print(f"  ✗ All {total_attempts} attempts failed: {e}")
+
+        self.notifier.send_error(
+            "Fetch Failed After All Retries", "\n".join(errors)
+        )
+        return False
+
     def run(self, base_interval=1800):
         """
         Run fetcher on schedule
@@ -177,11 +212,7 @@ class InfoMentorFetcher:
         print(f"Starting InfoMentor fetcher (every ~{base_interval//60} min)\n")
 
         while True:
-            try:
-                self.fetch_and_process()
-            except Exception as e:
-                print(f"  ✗ CRITICAL ERROR in run loop: {e}")
-                self.notifier.send_error("Main Run Loop", e)
+            self.fetch_with_retry()
 
             # Add 1/15 variation converted to int
             vari = base_interval // 15

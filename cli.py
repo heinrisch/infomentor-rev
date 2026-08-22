@@ -4,7 +4,7 @@
 import argparse
 from pathlib import Path
 
-from infomentor.runner import InfoMentorFetcher
+from infomentor.runner import CriticalFetchError, InfoMentorFetcher
 from infomentor.auth import TokenManager
 from infomentor.config import Config
 
@@ -13,7 +13,11 @@ def cmd_fetch(args):
     try:
         fetcher = InfoMentorFetcher()
         if args.once:
-            fetcher.fetch_and_process()
+            try:
+                fetcher.fetch_and_process()
+            except CriticalFetchError as e:
+                print(f"\nCRITICAL ERROR: {e}")
+                fetcher.notifier.send_error("Fetch Failed", str(e))
         else:
             fetcher.run(base_interval=args.interval)
     except KeyboardInterrupt:
