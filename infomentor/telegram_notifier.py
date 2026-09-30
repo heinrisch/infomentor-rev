@@ -311,3 +311,23 @@ class TelegramNotifier:
         text += f"```{self.escape_markdown(str(error_message))}```"
 
         self.send_message(text, parse_mode="MarkdownV2")
+
+    def send_changes(self, title, lines, pupil_name=None):
+        """Send a generic list of change lines (capped, changes only)."""
+        if not lines:
+            return
+
+        display = f"[{pupil_name}] {title}" if pupil_name else title
+        shown = list(lines)
+        if len(shown) > 25:
+            shown = shown[:25] + [f"...and {len(shown) - 25} more"]
+
+        text = f"*{self.escape_markdown(display)}*\n\n"
+        for line in shown:
+            text += f"• {self.escape_markdown(line)}\n"
+
+        if len(text) > 4000:
+            text = text[:3997] + r"\.\.\."
+
+        print(f"    → Sending Telegram {title.lower()} notification...")
+        self.send_message(text, parse_mode="MarkdownV2")

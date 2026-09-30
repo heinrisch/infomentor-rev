@@ -78,9 +78,30 @@ class FakePostSession:
         self.payloads = list(payloads)
         self.bodies = []
 
-    def post(self, url, headers=None, json=None, timeout=None):
-        self.bodies.append(json)
+    def post(self, url, headers=None, json=None, data=None, timeout=None):
+        self.bodies.append(json if json is not None else data)
         return FakeJsonResponse(self.payloads.pop(0))
+
+
+def make_storage(tmp):
+    return StorageManager(Path(tmp) / "news", Path(tmp) / "files")
+
+
+def process_with(fetcher_cls, payloads, tmp, pupil_id="7"):
+    """Run a fetcher's process_* once with canned responses."""
+    storage = make_storage(tmp)
+    capture = CaptureNotifier()
+    fetcher = fetcher_cls(FakePostSession(payloads), storage, capture.notifier)
+    fetcher.web_base_url = "https://hub.infomentor.se"
+    fetcher.pupil_id = pupil_id
+    fetcher.pupil_name = "Test Pupil"
+    process = next(
+        getattr(fetcher, name)
+        for name in dir(fetcher)
+        if name.startswith("process_")
+    )
+    process()
+    return capture.sent
 
 
 def attendance_record(**overrides):
@@ -307,6 +328,234 @@ class NewsImageTest(unittest.TestCase):
             )
         self.assertEqual(count, 1)
         self.assertEqual(paths[0].name, "pic.pdf")
+
+
+class StorageStateTest(unittest.TestCase):
+    def test_roundtrip_and_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = make_storage(tmp)
+            self.assertIsNone(storage.load_state("tasks", pupil_id="7"))
+            storage.save_state("tasks", {"a": 1}, pupil_id="7")
+            self.assertEqual(
+                storage.load_state("tasks", pupil_id="7"), {"a": 1}
+            )
+
+
+class ChangesMessageTest(unittest.TestCase):
+    def test_formats_title_pupil_and_lines(self):
+        capture = CaptureNotifier()
+        capture.notifier.send_changes(
+            "📝 Tasks Update", ["New: x", "Updated: y"], pupil_name="N N"
+        )
+        (text,) = capture.sent
+        self.assertIn("Tasks Update", text)
+        self.assertIn("N N", text)
+        self.assertIn("New: x", text)
+
+    def test_empty_sends_nothing_and_long_capped(self):
+        capture = CaptureNotifier()
+        capture.notifier.send_changes("T", [], pupil_name=None)
+        self.assertEqual(capture.sent, [])
+        capture.notifier.send_changes(
+            "T", [f"line {i}" for i in range(30)], pupil_name=None
+        )
+        (text,) = capture.sent
+        self.assertIn("line 24", text)
+        self.assertNotIn("line 25", text)
+        self.assertIn("5 more", text)
+
+
+class TasksProcessTest(unittest.TestCase):
+    def test_new_task_notifies_and_rerun_silent(self):
+        from infomentor.tasks_fetcher import TaskFetcher
+
+        empty = {"taskResults": {"items": [], "more": False,
+                                "totalOverdue": 0, "totalDue": 0}}
+        task = {"id": 5, "title": "Läxa kap 3", "dueDate": "2026-10-02"}
+        one = {"taskResults": {"items": [task], "more": False,
+                              "totalOverdue": 0, "totalDue": 1}}
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(process_with(TaskFetcher, [empty], tmp), [])
+            sent = process_with(TaskFetcher, [one], tmp)
+            self.assertEqual(len(sent), 1)
+            self.assertIn("Läxa kap 3", sent[0])
+            self.assertEqual(process_with(TaskFetcher, [one], tmp), [])
+
+    def test_overdue_increase_notifies(self):
+        from infomentor.tasks_fetcher import TaskFetcher
+
+        def payload(overdue):
+            return {"taskResults": {"items": [], "more": False,
+                                   "totalOverdue": overdue, "totalDue": 0}}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            process_with(TaskFetcher, [payload(0)], tmp)
+            sent = process_with(TaskFetcher, [payload(2)], tmp)
+            self.assertEqual(len(sent), 1)
+            self.assertIn("Overdue", sent[0])
+
+
+class GradesProcessTest(unittest.TestCase):
+    APP = {
+        "enableSummaryAssessmentLgr22": True,
+        "summaryAssessmentTermsLgr22": [
+            {"key": "1", "value": "t1"},
+            {"key": "2", "value": "t2"},
+        ],
+    }
+
+    def marks(self, **overrides):
+        mark = {"subject": "Bild", "id": 1, "hasMarks": False,
+                "markState": None}
+        mark.update(overrides)
+        return {"summaryAssessmentMarks": [mark]}
+
+    def test_new_mark_notifies(self):
+        from infomentor.grades_fetcher import GradesFetcher
+
+        with tempfile.TemporaryDirectory() as tmp:
+            sent = process_with(
+                GradesFetcher, [dict(self.APP), self.marks()], tmp
+            )
+            self.assertEqual(sent, [])  # baseline, no marks yet
+            sent = process_with(
+                GradesFetcher,
+                [dict(self.APP), self.marks(hasMarks=True, markState=2)],
+                tmp,
+            )
+            self.assertEqual(len(sent), 1)
+            self.assertIn("Bild", sent[0])
+
+    def test_term_ids_joined_from_app_data(self):
+        from infomentor.grades_fetcher import GradesFetcher
+
+        session = FakePostSession([dict(self.APP), self.marks()])
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = make_storage(tmp)
+            fetcher = GradesFetcher(session, storage, None)
+            fetcher.web_base_url = "https://hub.infomentor.se"
+            fetcher.fetch_grades()
+        self.assertEqual(session.bodies[1], {"termId": "1,2"})
+
+
+class DocumentationProcessTest(unittest.TestCase):
+    def payloads(self, status="Started", info="a"):
+        return [
+            {"id": 9, "status": status, "lastChangesInfo": info},
+            [{"id": 9, "changeStatusDate": "igår"}],
+            [],
+        ]
+
+    def test_status_change_notifies(self):
+        from infomentor.documentation_fetcher import DocumentationFetcher
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(
+                process_with(DocumentationFetcher, self.payloads(), tmp), []
+            )
+            sent = process_with(
+                DocumentationFetcher, self.payloads(status="Completed"), tmp
+            )
+            self.assertEqual(len(sent), 1)
+            self.assertIn("Completed", sent[0])
+
+
+class TimetableProcessTest(unittest.TestCase):
+    def lesson(self, **overrides):
+        entry = {
+            "start": "2026-09-28T08:10:00",
+            "end": "2026-09-28T09:00:00",
+            "title": "Svenska",
+            "startTime": "08:10",
+            "endTime": "09:00",
+            "notes": {"roomInfo": "G310"},
+        }
+        entry.update(overrides)
+        return entry
+
+    def test_week_range_is_monday_to_sunday(self):
+        from infomentor.timetable_fetcher import current_week_range
+
+        monday, sunday, _ = current_week_range()
+        self.assertEqual(monday.weekday(), 0)
+        self.assertEqual((sunday - monday).days, 6)
+
+    def test_added_lesson_notifies(self):
+        from infomentor.timetable_fetcher import TimetableFetcher
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(process_with(TimetableFetcher, [[]], tmp), [])
+            sent = process_with(TimetableFetcher, [[self.lesson()]], tmp)
+            self.assertEqual(len(sent), 1)
+            self.assertIn("Svenska", sent[0])
+            self.assertIn("G310", sent[0])
+
+
+class TimeRegistrationProcessTest(unittest.TestCase):
+    def day(self, **overrides):
+        day = {
+            "date": "2026-09-28T00:00:00",
+            "startDateTime": "2026-09-28T07:00:00",
+            "endDateTime": "2026-09-28T17:00:00",
+            "onLeave": False,
+            "hasUnreadComments": False,
+        }
+        day.update(overrides)
+        return {"days": [day]}
+
+    def test_unread_comment_notifies(self):
+        from infomentor.timeregistration_fetcher import TimeRegistrationFetcher
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(
+                process_with(TimeRegistrationFetcher, [self.day()], tmp), []
+            )
+            sent = process_with(
+                TimeRegistrationFetcher,
+                [self.day(hasUnreadComments=True)],
+                tmp,
+            )
+            self.assertEqual(len(sent), 1)
+            self.assertIn("comment", sent[0])
+
+
+class UolClasslistProcessTest(unittest.TestCase):
+    def test_uol_state_change_notifies(self):
+        from infomentor.uol_fetcher import UolFetcher
+
+        def payload(state):
+            return {"uols": [{"id": 3, "title": "Bråk", "state": state}]}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(process_with(UolFetcher, [payload("active")], tmp), [])
+            sent = process_with(UolFetcher, [payload("finished")], tmp)
+            self.assertEqual(len(sent), 1)
+            self.assertIn("Bråk", sent[0])
+
+    def test_classlist_membership_changes_notify(self):
+        from infomentor.classlist_fetcher import ClassListFetcher
+
+        def payload(names):
+            return {
+                "groupConfig": [
+                    {
+                        "title": "2B",
+                        "items": [
+                            {"id": str(i), "name": n}
+                            for i, n in enumerate(names)
+                        ],
+                    }
+                ]
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(
+                process_with(ClassListFetcher, [payload(["A"])], tmp), []
+            )
+            sent = process_with(ClassListFetcher, [payload(["A", "B"])], tmp)
+            self.assertEqual(len(sent), 1)
+            self.assertIn("B", sent[0])
+            self.assertIn("2B", sent[0])
 
 
 if __name__ == "__main__":

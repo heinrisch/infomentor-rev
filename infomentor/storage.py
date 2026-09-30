@@ -217,6 +217,38 @@ class StorageManager:
             print(f"    ✗ ERROR: Failed to save {filename}: {e}")
             return None
 
+    def save_state(self, kind, data, pupil_id=None):
+        """Save a named state blob (latest only), e.g. kind='tasks'."""
+        if pupil_id:
+            filename = self.output_dir / f"{kind}_{pupil_id}.json"
+        else:
+            filename = self.output_dir / f"{kind}.json"
+
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return filename
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to save {kind} state: {e}")
+            return None
+
+    def load_state(self, kind, pupil_id=None):
+        """Load a named state blob, or None if never saved."""
+        if pupil_id:
+            filename = self.output_dir / f"{kind}_{pupil_id}.json"
+        else:
+            filename = self.output_dir / f"{kind}.json"
+
+        if not filename.exists():
+            return None
+
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to load {kind} state: {e}")
+            return None
+
     def save_pupils(self, pupils_data):
         """Save pupils information to JSON file"""
         filename = self.output_dir / "pupils.json"

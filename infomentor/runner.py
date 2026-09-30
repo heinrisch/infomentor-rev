@@ -6,7 +6,10 @@ import requests
 
 from .attendance_fetcher import AttendanceFetcher
 from .auth import SessionManager, TokenManager
+from .classlist_fetcher import ClassListFetcher
 from .config import Config
+from .documentation_fetcher import DocumentationFetcher
+from .grades_fetcher import GradesFetcher
 from .llm_client import LLMClient
 from .news_fetcher import NewsFetcher
 from .notification_fetcher import NotificationFetcher
@@ -14,7 +17,11 @@ from .notifier import CompositeNotifier
 from .pupil_fetcher import PupilFetcher
 from .schedule_fetcher import ScheduleFetcher
 from .storage import StorageManager
+from .tasks_fetcher import TaskFetcher
 from .telegram_notifier import TelegramNotifier
+from .timetable_fetcher import TimetableFetcher
+from .timeregistration_fetcher import TimeRegistrationFetcher
+from .uol_fetcher import UolFetcher
 
 # Retry schedule for critical fetch failures (token/session/pupil-list).
 # Attempt 1 runs immediately; retries wait 10 min, then 20 min, then 60 min.
@@ -85,6 +92,27 @@ class InfoMentorFetcher:
         self.pupil_fetcher = PupilFetcher(
             self.session, self.storage_manager
         )
+        self.tasks_fetcher = TaskFetcher(
+            self.session, self.storage_manager, self.notifier
+        )
+        self.grades_fetcher = GradesFetcher(
+            self.session, self.storage_manager, self.notifier
+        )
+        self.documentation_fetcher = DocumentationFetcher(
+            self.session, self.storage_manager, self.notifier
+        )
+        self.timetable_fetcher = TimetableFetcher(
+            self.session, self.storage_manager, self.notifier
+        )
+        self.timeregistration_fetcher = TimeRegistrationFetcher(
+            self.session, self.storage_manager, self.notifier
+        )
+        self.uol_fetcher = UolFetcher(
+            self.session, self.storage_manager, self.notifier
+        )
+        self.classlist_fetcher = ClassListFetcher(
+            self.session, self.storage_manager, self.notifier
+        )
 
     def fetch_and_process(self):
         """Fetch and save all data (news, schedule, notifications)"""
@@ -109,6 +137,13 @@ class InfoMentorFetcher:
         self.attendance_fetcher.web_base_url = self.session_manager.web_base_url
         self.notification_fetcher.web_base_url = self.session_manager.web_base_url
         self.pupil_fetcher.web_base_url = self.session_manager.web_base_url
+        self.tasks_fetcher.web_base_url = self.session_manager.web_base_url
+        self.grades_fetcher.web_base_url = self.session_manager.web_base_url
+        self.documentation_fetcher.web_base_url = self.session_manager.web_base_url
+        self.timetable_fetcher.web_base_url = self.session_manager.web_base_url
+        self.timeregistration_fetcher.web_base_url = self.session_manager.web_base_url
+        self.uol_fetcher.web_base_url = self.session_manager.web_base_url
+        self.classlist_fetcher.web_base_url = self.session_manager.web_base_url
 
         # 1. Fetch pupils initially to know who we're dealing with
         try:
@@ -137,6 +172,20 @@ class InfoMentorFetcher:
             self.attendance_fetcher.pupil_id = pupil_id
             self.notification_fetcher.pupil_name = pupil_name
             self.notification_fetcher.pupil_id = pupil_id
+            self.tasks_fetcher.pupil_name = pupil_name
+            self.tasks_fetcher.pupil_id = pupil_id
+            self.grades_fetcher.pupil_name = pupil_name
+            self.grades_fetcher.pupil_id = pupil_id
+            self.documentation_fetcher.pupil_name = pupil_name
+            self.documentation_fetcher.pupil_id = pupil_id
+            self.timetable_fetcher.pupil_name = pupil_name
+            self.timetable_fetcher.pupil_id = pupil_id
+            self.timeregistration_fetcher.pupil_name = pupil_name
+            self.timeregistration_fetcher.pupil_id = pupil_id
+            self.uol_fetcher.pupil_name = pupil_name
+            self.uol_fetcher.pupil_id = pupil_id
+            self.classlist_fetcher.pupil_name = pupil_name
+            self.classlist_fetcher.pupil_id = pupil_id
 
             # Switch context if needed
             if switch_url:
@@ -175,6 +224,57 @@ class InfoMentorFetcher:
             except Exception as e:
                 print(f"  ✗ ERROR processing notifications for {pupil_name}: {e}")
                 self.notifier.send_error(f"Processing Notifications ({pupil_name})", e)
+
+            # Process Tasks
+            try:
+                self.tasks_fetcher.process_tasks()
+            except Exception as e:
+                print(f"  ✗ ERROR processing tasks for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Tasks ({pupil_name})", e)
+
+            # Process Grades
+            try:
+                self.grades_fetcher.process_grades()
+            except Exception as e:
+                print(f"  ✗ ERROR processing grades for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Grades ({pupil_name})", e)
+
+            # Process Documentation
+            try:
+                self.documentation_fetcher.process_documentation()
+            except Exception as e:
+                print(f"  ✗ ERROR processing documentation for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Documentation ({pupil_name})", e)
+
+            # Process Timetable
+            try:
+                self.timetable_fetcher.process_timetable()
+            except Exception as e:
+                print(f"  ✗ ERROR processing timetable for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Timetable ({pupil_name})", e)
+
+            # Process Time Registrations
+            try:
+                self.timeregistration_fetcher.process_registrations()
+            except Exception as e:
+                print(f"  ✗ ERROR processing time registrations for {pupil_name}: {e}")
+                self.notifier.send_error(
+                    f"Processing Time Registrations ({pupil_name})", e
+                )
+
+            # Process UOLs
+            try:
+                self.uol_fetcher.process_uols()
+            except Exception as e:
+                print(f"  ✗ ERROR processing UOLs for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing UOLs ({pupil_name})", e)
+
+            # Process Class List
+            try:
+                self.classlist_fetcher.process_classlist()
+            except Exception as e:
+                print(f"  ✗ ERROR processing class list for {pupil_name}: {e}")
+                self.notifier.send_error(f"Processing Class List ({pupil_name})", e)
 
         print(f"\n{'='*60}\n")
 
