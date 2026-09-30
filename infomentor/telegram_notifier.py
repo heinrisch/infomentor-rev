@@ -56,7 +56,7 @@ class TelegramNotifier:
         special_chars = r"_*[]()~`>#+-=|{}.!"
         return "".join(f"\\{c}" if c in special_chars else c for c in text)
 
-    # --- Interface Methods (matching DiscordNotifier) ---
+    # --- Interface Methods (notifier interface) ---
 
     def send_webhook(
         self,

@@ -147,7 +147,7 @@ class NewsFetcher:
         return downloaded, downloaded_paths
 
     def process_new_item(self, item, attachment_paths=None):
-        """Process a new news item with LLM and Discord"""
+        """Process a new news item with LLM and notify"""
         content = item.get("content", "")
         title = item.get("title", "No Title")
         published_date = item.get(
@@ -214,7 +214,7 @@ class NewsFetcher:
                             item, existing_attachments
                         )
 
-                        # Process with LLM and send to Discord
+                        # Process with LLM and send notification
                         self.process_new_item(item, attachment_paths)
             else:
                 print("  → No new news items")

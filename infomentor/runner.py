@@ -7,7 +7,6 @@ import requests
 from .attendance_fetcher import AttendanceFetcher
 from .auth import SessionManager, TokenManager
 from .config import Config
-from .discord_notifier import DiscordNotifier
 from .llm_client import LLMClient
 from .news_fetcher import NewsFetcher
 from .notification_fetcher import NotificationFetcher
@@ -45,8 +44,6 @@ class InfoMentorFetcher:
         )
 
         notifiers = []
-        if self.config.discord_webhook_url:
-            notifiers.append(DiscordNotifier(self.config.discord_webhook_url))
         if self.config.telegram_bot_token and self.config.telegram_chat_id:
             notifiers.append(
                 TelegramNotifier(

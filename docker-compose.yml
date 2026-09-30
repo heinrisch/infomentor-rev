@@ -6,16 +6,13 @@ services:
     
     # Environment variables
     environment:
-      # Required: Discord webhook URL for notifications
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
-      
       # Required: Perplexity API key for LLM processing
       - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
       
       # Optional: Gemini API key for LLM processing
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       
-      # Optional: Telegram bot credentials
+      # Required: Telegram bot credentials
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       

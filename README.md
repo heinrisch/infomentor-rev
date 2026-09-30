@@ -1,6 +1,6 @@
 # InfoMentor Notifier
 
-A Python tool designed to fetch news, schedules, and notifications from the [InfoMentor](https://www.infomentor.se/) platform and deliver them directly to your Discord server or Telegram chat.
+A Python tool designed to fetch news, schedules, and notifications from the [InfoMentor](https://www.infomentor.se/) platform and deliver them directly to your Telegram chat.
 
 - Uses long-lived tokens from mobile auth
 - Supports BankID login
@@ -33,16 +33,9 @@ A Python tool designed to fetch news, schedules, and notifications from the [Inf
 2. Add the following configuration variables to `.env`:
    ```env
    PERPLEXITY_API_KEY=your_perplexity_api_key
-   DISCORD_WEBHOOK_URL=your_discord_webhook_url
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
    TELEGRAM_CHAT_ID=your_telegram_chat_id
    ```
-
-   > **Note:** The notification channels are enabled based on which variables are present.
-   > - To enable **Discord**, set `DISCORD_WEBHOOK_URL`.
-   > - To enable **Telegram**, set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
-   > - To enable **both**, set all variables.
-   > - To **disable** a channel, simply remove or comment out (`#`) the corresponding lines in `.env`.
 
 ## Usage
 
@@ -88,7 +81,6 @@ The application can be run in a Docker container for easier deployment and isola
 
 2. **Edit `.env` and add your credentials:**
    ```env
-   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
    PERPLEXITY_API_KEY=pplx-your-api-key-here
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
    TELEGRAM_CHAT_ID=your_telegram_chat_id
@@ -123,7 +115,6 @@ The application can be run in a Docker container for easier deployment and isola
 The `docker-compose.yml` file includes the following configurable options:
 
 - **Environment Variables:** Set via `.env` file
-  - `DISCORD_WEBHOOK_URL` - Discord webhook for notifications
   - `TELEGRAM_BOT_TOKEN` - Telegram Bot Token
   - `TELEGRAM_CHAT_ID` - Telegram Chat ID
   - `PERPLEXITY_API_KEY` - API key for LLM processing
@@ -160,7 +151,6 @@ If you prefer not to use Docker Compose:
    docker run -d \
      --name infomentor-fetcher \
      --shm-size=2gb \
-     -e DISCORD_WEBHOOK_URL="your_webhook_url" \
      -e TELEGRAM_BOT_TOKEN="your_bot_token" \
      -e TELEGRAM_CHAT_ID="your_chat_id" \
      -e PERPLEXITY_API_KEY="your_api_key" \

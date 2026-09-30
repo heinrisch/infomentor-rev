@@ -4,7 +4,7 @@ This document describes the internal architecture of the InfoMentor Notifier pro
 
 ## 1. System Overview
 
-The InfoMentor Notifier is designed as a modular polling system. It authenticates with the InfoMentor platform, extracts session cookies, queries internal APIs for various pupil data (news, schedules, attendance, and notifications), processes this data (sometimes leveraging an LLM for summarization), and broadcasts updates to configured chat platforms (Discord and Telegram).
+The InfoMentor Notifier is designed as a modular polling system. It authenticates with the InfoMentor platform, extracts session cookies, queries internal APIs for various pupil data (news, schedules, attendance, and notifications), processes this data (sometimes leveraging an LLM for summarization), and broadcasts updates to Telegram.
 
 ## 2. Core Components
 
@@ -35,10 +35,10 @@ To make lengthy, formal Swedish school updates easily digestible, the system emp
 The system avoids duplicate notifications by keeping a local, file-based state.
 - **`StorageManager`**: Saves raw JSON responses to the `news/` directory using naming conventions tied to pupil IDs and entity IDs. Before a fetcher processes an item, it queries the `StorageManager` to see if the ID already exists on disk. It also manages file downloads (attachments) to a `files/` directory.
 
-### 2.6 Notification Layer (`notifier.py`, `discord_notifier.py`, `telegram_notifier.py`)
-The system supports multiple broadcast channels.
-- **`CompositeNotifier`**: A wrapper class that iterates over all enabled notifiers. It wraps each broadcast in a `try-except` block to ensure that a failure in one service (e.g., Discord rate limiting) does not block delivery to another service (e.g., Telegram).
-- **`DiscordNotifier` & `TelegramNotifier`**: Service-specific implementations. They receive identical generic arguments (summaries, highlights, attachments) and are responsible for formatting the data according to the platform's specific markdown and payload constraints (e.g., handling Telegram's strict MarkdownV2 escaping and chunking text to fit Discord's 4096-character embed limits).
+### 2.6 Notification Layer (`notifier.py`, `telegram_notifier.py`)
+The system broadcasts updates over Telegram.
+- **`CompositeNotifier`**: A wrapper class that iterates over all enabled notifiers, wrapping each broadcast in a `try-except` block so a failure in one notifier does not block delivery to the others.
+- **`TelegramNotifier`**: The Telegram implementation. It receives generic arguments (summaries, highlights, attachments) and formats the data according to Telegram's markdown and payload constraints (e.g., handling Telegram's strict MarkdownV2 escaping and chunking text to fit the message size limits).
 
 ## 3. The Data Flow (Typical Cycle)
 
