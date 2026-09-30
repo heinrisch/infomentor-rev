@@ -98,6 +98,24 @@ class NewsFetcher:
                 if not safe_title:
                     safe_title = url.split("/")[-1] or "attachment"
 
+                # Images come without an extension; guess one so the
+                # file stays usable (e.g. Telegram previews).
+                if "." not in safe_title:
+                    content_type = (
+                        response.headers.get("Content-Type", "")
+                        .split(";")[0]
+                        .strip()
+                        .lower()
+                    )
+                    ext = {
+                        "image/jpeg": ".jpg",
+                        "image/png": ".png",
+                        "image/gif": ".gif",
+                        "image/webp": ".webp",
+                    }.get(content_type)
+                    if ext:
+                        safe_title += ext
+
                 filepath = self.files_dir / safe_title
 
                 # Check if file already exists and has content
@@ -118,7 +136,12 @@ class NewsFetcher:
 
     def download_attachments(self, item, existing_attachments):
         """Download all attachments for a news item"""
-        attachments = item.get("attachments", [])
+        attachments = list(item.get("attachments", []) or [])
+        image_url = item.get("newsImageUrl")
+        if image_url and all(a.get("url") != image_url for a in attachments):
+            attachments.append(
+                {"url": image_url, "title": f"news_{item.get('id')}_image"}
+            )
         downloaded_paths = []
         if not attachments:
             return 0, []

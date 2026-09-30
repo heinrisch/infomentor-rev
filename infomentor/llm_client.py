@@ -5,9 +5,10 @@ import time
 
 
 class LLMClient:
-    def __init__(self, perplexity_api_key=None, gemini_api_key=None):
+    def __init__(self, perplexity_api_key=None, gemini_api_key=None, enabled=True):
         self.perplexity_api_key = perplexity_api_key
         self.gemini_api_key = gemini_api_key
+        self.enabled = enabled
 
     def clean_json_response(self, response_text):
         """Extract JSON from potential markdown code blocks or raw text"""
@@ -29,6 +30,8 @@ class LLMClient:
         return response_text
 
     def summarize_news_entry(self, content, published_date):
+        if not self.enabled:
+            return None
         if not content:
             return None
 

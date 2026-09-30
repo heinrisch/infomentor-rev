@@ -26,7 +26,7 @@ class CriticalFetchError(Exception):
 
 
 class InfoMentorFetcher:
-    def __init__(self, notify=True):
+    def __init__(self, notify=True, enable_llm=True):
         self.config = Config()
         self.session = requests.Session()
 
@@ -40,8 +40,12 @@ class InfoMentorFetcher:
             self.config.output_dir, self.config.files_dir
         )
         self.llm_client = LLMClient(
-            self.config.perplexity_api_key, self.config.gemini_api_key
+            self.config.perplexity_api_key,
+            self.config.gemini_api_key,
+            enabled=enable_llm,
         )
+        if not enable_llm:
+            print("  → LLM summarization disabled (--no-llm)")
 
         notifiers = []
         if notify:

@@ -3,3 +3,4 @@ files/
 news/
 infomentor_tokens.json
 .env
+*.har

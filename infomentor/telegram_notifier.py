@@ -220,6 +220,18 @@ class TelegramNotifier:
                     else "All Day"
                 )
                 text += f"• {self.escape_markdown(time_str)}: {self.escape_markdown(entry['title'])}\n"
+                desc = re.sub(r"<[^>]+>", "", entry.get("description") or "").strip()
+                if len(desc) > 100:
+                    desc = desc[:97] + "..."
+                if desc:
+                    text += f"  _{self.escape_markdown(desc)}_\n"
+                tags = [
+                    str(v)
+                    for key in ("subjects", "courses")
+                    for v in (entry.get(key) or [])
+                ]
+                if tags:
+                    text += f"  _{self.escape_markdown(', '.join(tags))}_\n"
             text += "\n"
 
         if len(text) > 4000:
@@ -232,6 +244,7 @@ class TelegramNotifier:
         title = notification.get("title", "New Notification")
         subtitle = notification.get("subTitle", "")
         url = notification.get("url", "")
+        date_sent = notification.get("dateSent", "")
 
         display_title = f"🔔 {title}"
         if pupil_name:
@@ -239,7 +252,10 @@ class TelegramNotifier:
 
         text = f"*{self.escape_markdown(display_title)}*\n"
         if subtitle:
-            text += f"{self.escape_markdown(subtitle)}\n\n"
+            text += f"{self.escape_markdown(subtitle)}\n"
+        if date_sent:
+            text += f"_{self.escape_markdown(date_sent)}_\n"
+        text += "\n"
 
         if url:
              full_url = f"https://hub.infomentor.se{url}"
@@ -262,11 +278,21 @@ class TelegramNotifier:
         text += f"Found {len(new_records)} new attendance records\\.\n\n"
 
         for record in new_records:
-            date = self.escape_markdown(record.get("dateString", "Unknown Date"))
-            lesson = self.escape_markdown(record.get("lessonName", "Unknown Lesson"))
-            status = self.escape_markdown(record.get("registrationTypeName", "Unknown Status"))
+            date = self.escape_markdown(
+                record.get("longDate")
+                or record.get("shortDate")
+                or "Unknown Date"
+            )
+            lesson = record.get("subject") or "Unknown Lesson"
+            if record.get("time"):
+                lesson += f" {record['time']}"
+            lesson = self.escape_markdown(lesson)
+            status = record.get("reason") or "Unknown Status"
+            if record.get("minutes"):
+                status += f" ({record['minutes']} min)"
+            status = self.escape_markdown(status)
             comment = self.escape_markdown(record.get("comment", ""))
-            
+
             text += f"📅 *{date}*\n"
             text += f"• *Status:* {status}\n"
             text += f"• *Lesson:* {lesson}\n"

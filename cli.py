@@ -11,7 +11,9 @@ from infomentor.config import Config
 
 def cmd_fetch(args):
     try:
-        fetcher = InfoMentorFetcher(notify=not args.no_notify)
+        fetcher = InfoMentorFetcher(
+            notify=not args.no_notify, enable_llm=not args.no_llm
+        )
         if args.once:
             try:
                 fetcher.fetch_and_process()
@@ -53,6 +55,11 @@ def main():
         "--no-notify",
         action="store_true",
         help="Fetch and store without sending notifications",
+    )
+    fetch_parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Skip LLM summarization",
     )
     fetch_parser.set_defaults(func=cmd_fetch)
 

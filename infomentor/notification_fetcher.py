@@ -1,4 +1,37 @@
+import re
+from datetime import date, timedelta
+
 import requests
+
+
+def parse_calendar_url(url_route):
+    """Extract (year, week, event_id) from a calendarv2 notification URL.
+
+    Returns None for non-calendar URLs or URLs without all three parts.
+    """
+    if not url_route or "calendarv2" not in url_route.lower():
+        return None
+    year = re.search(r"selectedYear=(\d+)", url_route)
+    week = re.search(r"selectedWeek=(\d+)", url_route)
+    event = re.search(r"eventId=(\d+)", url_route)
+    if not (year and week and event):
+        return None
+    return int(year.group(1)), int(week.group(1)), int(event.group(1))
+
+
+def calendar_week_range(year, week):
+    """(start, end) date strings covering a calendar week.
+
+    Spans Monday-1 to Monday+7 so the entry is found whether the week
+    numbering starts on Monday or Sunday. Returns None for invalid weeks.
+    """
+    try:
+        monday = date.fromisocalendar(year, week, 1)
+    except ValueError:
+        return None
+    start = monday - timedelta(days=1)
+    end = monday + timedelta(days=7)
+    return start.strftime("%Y/%m/%d"), end.strftime("%Y/%m/%d")
 
 
 class NotificationFetcher:
@@ -67,7 +100,66 @@ class NotificationFetcher:
             except Exception as e:
                 print(f"  ✗ Error fetching message detail: {e}")
 
+        # Calendar event
+        parsed = parse_calendar_url(url_route)
+        if parsed:
+            year, week, event_id = parsed
+            print(f"  → Notification is for calendar event {event_id}")
+            entry = self.fetch_calendar_event(year, week, event_id)
+            if entry:
+                return self.calendar_entry_to_item(entry)
+            print("  ⚠ Calendar event not found, using plain notification")
+
         return None
+
+    @staticmethod
+    def calendar_entry_to_item(entry):
+        """Shape a calendar entry like a news item for the notify path."""
+        start = entry.get("startTime") or ""
+        end = entry.get("endTime") or ""
+        when = f"{start}-{end}" if start or end else ""
+        return {
+            "title": entry.get("title", "Calendar event"),
+            "content": entry.get("description") or entry.get("text") or "",
+            "publishedDateString": entry.get("formattedStartDate", ""),
+            "publishedBy": when,
+        }
+
+    def fetch_calendar_event(self, year, week, event_id):
+        """Fetch one calendar entry via the schedule endpoint."""
+        if not self.web_base_url:
+            return None
+
+        week_range = calendar_week_range(year, week)
+        if not week_range:
+            return None
+        start_str, end_str = week_range
+
+        url = f"{self.web_base_url}/calendarv2/calendarv2/getentries"
+        headers = {
+            "Accept": "*/*",
+            "Content-Type": "application/json; charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{self.web_base_url}/",
+        }
+
+        try:
+            response = self.session.post(
+                url,
+                headers=headers,
+                json={"startDate": start_str, "endDate": end_str},
+                timeout=30,
+            )
+            if response.status_code != 200:
+                return None
+            entries = response.json()
+            for entry in entries if isinstance(entries, list) else []:
+                if entry.get("id") == event_id:
+                    return entry
+            return None
+        except Exception as e:
+            print(f"  ✗ Error fetching calendar event: {e}")
+            return None
 
     def fetch_notifications(self):
         """Fetch notifications from InfoMentor"""
