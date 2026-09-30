@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
     curl \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up working directory

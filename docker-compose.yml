@@ -15,7 +15,10 @@ services:
       # Required: Telegram bot credentials
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
-      
+
+      # Timezone for scheduled runs (--at uses container local time)
+      - TZ=${TZ:-Europe/Stockholm}
+
       # Disable UV telemetry
       - UV_NO_ANALYTICS=1
     
@@ -30,10 +33,11 @@ services:
       # Downloaded files directory
       - ./files:/app/files
     
-    # Command to run (default is "fetch", can override)
-    # Uncomment and modify to change behavior:
+    # Run once at start, then daily at 06:00 and 18:00 (see TZ above).
+    # Other options:
     # command: ["fetch", "--once"]  # Run once and exit
-    # command: ["fetch", "--interval", "3600"]  # Run every hour
+    # command: ["fetch", "--interval", "3600"]  # Run every hour (3600 seconds)
+    command: ["fetch", "--at", "06:00,18:00"]
     
     # For debugging, you can override to keep container running:
     # command: ["tail", "-f", "/dev/null"]

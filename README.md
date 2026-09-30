@@ -63,6 +63,11 @@ uv run cli.py fetch --once
 uv run cli.py fetch
 ```
 
+**Run once at start, then daily at fixed times:**
+```bash
+uv run cli.py fetch --at 06:00,18:00
+```
+
 ## Docker Setup
 
 The application can be run in a Docker container for easier deployment and isolation.
@@ -118,6 +123,7 @@ The `docker-compose.yml` file includes the following configurable options:
   - `TELEGRAM_BOT_TOKEN` - Telegram Bot Token
   - `TELEGRAM_CHAT_ID` - Telegram Chat ID
   - `PERPLEXITY_API_KEY` - API key for LLM processing
+  - `TZ` - Timezone for scheduled runs (default: `Europe/Stockholm`)
 
 - **Volumes:** Persistent data storage
   - `./infomentor_tokens.json` - Authentication tokens
@@ -126,6 +132,7 @@ The `docker-compose.yml` file includes the following configurable options:
 
 - **Command Options:** Modify the `command` in `docker-compose.yml`:
   ```yaml
+  command: ["fetch", "--at", "06:00,18:00"]  # Run at start, then daily at 06:00 and 18:00
   command: ["fetch", "--once"]  # Run once and exit
   command: ["fetch", "--interval", "3600"]  # Run every hour (3600 seconds)
   ```

@@ -1,6 +1,6 @@
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 
@@ -30,6 +30,22 @@ RETRY_DELAY_SECONDS = [10 * 60, 20 * 60, 60 * 60]
 
 class CriticalFetchError(Exception):
     """Raised when a critical step (auth/session/pupil-list) fails."""
+
+
+def seconds_until_next_run(at_times, now=None):
+    """Seconds until the next daily run time, and that datetime.
+
+    at_times: iterable of datetime.time objects (container-local time).
+    """
+    now = now or datetime.now()
+    upcoming = []
+    for run_time in at_times:
+        candidate = datetime.combine(now.date(), run_time)
+        if candidate <= now:
+            candidate += timedelta(days=1)
+        upcoming.append(candidate)
+    next_run = min(upcoming)
+    return (next_run - now).total_seconds(), next_run
 
 
 class InfoMentorFetcher:
@@ -308,23 +324,35 @@ class InfoMentorFetcher:
         )
         return False
 
-    def run(self, base_interval=1800):
+    def run(self, base_interval=1800, at_times=None):
         """
-        Run fetcher on schedule
-        base_interval: 1800 seconds (30 minutes), with ±120s variation
+        Run fetcher on schedule.
+
+        With at_times (daily HH:MM clock times): run once immediately,
+        then at those times. Otherwise poll every base_interval seconds
+        (30 minutes default), with ±1/15 variation.
         """
-        print(f"Starting InfoMentor fetcher (every ~{base_interval//60} min)\n")
+        if at_times:
+            times = ", ".join(t.strftime("%H:%M") for t in at_times)
+            print(f"Starting InfoMentor fetcher (daily at {times})\n")
+        else:
+            print(f"Starting InfoMentor fetcher (every ~{base_interval//60} min)\n")
 
         while True:
             self.fetch_with_retry()
 
-            # Add 1/15 variation converted to int
-            vari = base_interval // 15
-            variation = random.randint(-vari, vari)
-            sleep_time = base_interval + variation
+            if at_times:
+                sleep_time, next_run = seconds_until_next_run(at_times)
+                next_time = next_run.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                # Add 1/15 variation converted to int
+                vari = base_interval // 15
+                variation = random.randint(-vari, vari)
+                sleep_time = base_interval + variation
 
-            next_run = datetime.now().timestamp() + sleep_time
-            next_time = datetime.fromtimestamp(next_run).strftime("%H:%M:%S")
-            print(f"Next fetch at {next_time} ({sleep_time}s)\n")
+                next_run = datetime.now().timestamp() + sleep_time
+                next_time = datetime.fromtimestamp(next_run).strftime("%H:%M:%S")
+
+            print(f"Next fetch at {next_time} ({int(sleep_time)}s)\n")
 
             time.sleep(sleep_time)

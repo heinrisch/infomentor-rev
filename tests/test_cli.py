@@ -558,5 +558,46 @@ class UolClasslistProcessTest(unittest.TestCase):
             self.assertIn("2B", sent[0])
 
 
+class ScheduleTimeTest(unittest.TestCase):
+    def test_at_type_parses_times(self):
+        from cli import at_type
+
+        times = at_type("06:00,18:00")
+        self.assertEqual(
+            [(t.hour, t.minute) for t in times], [(6, 0), (18, 0)]
+        )
+
+    def test_at_type_rejects_garbage(self):
+        import argparse
+
+        from cli import at_type
+
+        for bad in ("25:00", "abc", "06:00,xx"):
+            with self.assertRaises(argparse.ArgumentTypeError):
+                at_type(bad)
+
+    def test_next_run_same_day(self):
+        from datetime import datetime
+
+        from infomentor.runner import seconds_until_next_run
+        from cli import at_type
+
+        now = datetime(2026, 1, 1, 4, 0, 0)
+        seconds, nxt = seconds_until_next_run(at_type("06:00,18:00"), now=now)
+        self.assertEqual(seconds, 2 * 3600)
+        self.assertEqual(nxt, datetime(2026, 1, 1, 6, 0, 0))
+
+    def test_next_run_rolls_to_tomorrow(self):
+        from datetime import datetime
+
+        from infomentor.runner import seconds_until_next_run
+        from cli import at_type
+
+        now = datetime(2026, 1, 1, 19, 0, 0)
+        seconds, nxt = seconds_until_next_run(at_type("06:00,18:00"), now=now)
+        self.assertEqual(seconds, 11 * 3600)
+        self.assertEqual(nxt, datetime(2026, 1, 2, 6, 0, 0))
+
+
 if __name__ == "__main__":
     unittest.main()

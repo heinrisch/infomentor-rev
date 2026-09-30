@@ -2,11 +2,26 @@
 
 
 import argparse
+from datetime import datetime
 from pathlib import Path
 
 from infomentor.runner import CriticalFetchError, InfoMentorFetcher
 from infomentor.auth import TokenManager
 from infomentor.config import Config
+
+
+def at_type(value):
+    times = []
+    for part in value.split(","):
+        try:
+            times.append(datetime.strptime(part.strip(), "%H:%M").time())
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"invalid time {part.strip()!r}, expected HH:MM"
+            )
+    if not times:
+        raise argparse.ArgumentTypeError("expected at least one HH:MM time")
+    return times
 
 
 def cmd_fetch(args):
@@ -21,7 +36,7 @@ def cmd_fetch(args):
                 print(f"\nCRITICAL ERROR: {e}")
                 fetcher.notifier.send_error("Fetch Failed", str(e))
         else:
-            fetcher.run(base_interval=args.interval)
+            fetcher.run(base_interval=args.interval, at_times=args.at)
     except KeyboardInterrupt:
         print("\nInterrupted by user.")
     except Exception as e:
@@ -60,6 +75,14 @@ def main():
         "--no-llm",
         action="store_true",
         help="Skip LLM summarization",
+    )
+    fetch_parser.add_argument(
+        "--at",
+        type=at_type,
+        default=None,
+        metavar="HH:MM[,HH:MM...]",
+        help="Run once at start, then daily at these local times "
+        "(e.g. --at 06:00,18:00). Overrides --interval.",
     )
     fetch_parser.set_defaults(func=cmd_fetch)
 
