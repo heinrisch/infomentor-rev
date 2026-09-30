@@ -190,6 +190,16 @@ class AttendanceMessageTest(unittest.TestCase):
         self.assertIn("5 min", text)
         self.assertNotIn("Unknown", text)
 
+    def test_lesson_line_dropped_when_no_lesson(self):
+        capture = CaptureNotifier()
+        capture.notifier.send_attendance_update(
+            [attendance_record(subject=None, time=None)]
+        )
+        (text,) = capture.sent
+        self.assertNotIn("Lesson:", text)
+        self.assertNotIn("Unknown Lesson", text)
+        self.assertIn("Sen ankomst", text)
+
 
 class CalendarUrlTest(unittest.TestCase):
     def test_parse_calendar_url(self):

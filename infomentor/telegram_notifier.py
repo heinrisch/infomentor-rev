@@ -283,10 +283,9 @@ class TelegramNotifier:
                 or record.get("shortDate")
                 or "Unknown Date"
             )
-            lesson = record.get("subject") or "Unknown Lesson"
+            lesson = record.get("subject")
             if record.get("time"):
-                lesson += f" {record['time']}"
-            lesson = self.escape_markdown(lesson)
+                lesson = f"{lesson} {record['time']}" if lesson else record["time"]
             status = record.get("reason") or "Unknown Status"
             if record.get("minutes"):
                 status += f" ({record['minutes']} min)"
@@ -295,7 +294,8 @@ class TelegramNotifier:
 
             text += f"📅 *{date}*\n"
             text += f"• *Status:* {status}\n"
-            text += f"• *Lesson:* {lesson}\n"
+            if lesson:
+                text += f"• *Lesson:* {self.escape_markdown(lesson)}\n"
             if comment:
                 text += f"• *Comment:* {comment}\n"
             text += "\n"
