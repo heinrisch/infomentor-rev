@@ -50,6 +50,9 @@ class AttendanceFetcher:
                 try:
                     # InfoMentor often returns a list directly or in a 'data' field
                     result = response.json()
+                    self.storage_manager.save_raw(
+                        "attendance", result, pupil_id=self.pupil_id
+                    )
                     if isinstance(result, list):
                         attendance_list = result
                     elif isinstance(result, dict):

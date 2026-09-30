@@ -26,7 +26,7 @@ class CriticalFetchError(Exception):
 
 
 class InfoMentorFetcher:
-    def __init__(self):
+    def __init__(self, notify=True):
         self.config = Config()
         self.session = requests.Session()
 
@@ -44,15 +44,18 @@ class InfoMentorFetcher:
         )
 
         notifiers = []
-        if self.config.telegram_bot_token and self.config.telegram_chat_id:
-            notifiers.append(
-                TelegramNotifier(
-                    self.config.telegram_bot_token, self.config.telegram_chat_id
+        if notify:
+            if self.config.telegram_bot_token and self.config.telegram_chat_id:
+                notifiers.append(
+                    TelegramNotifier(
+                        self.config.telegram_bot_token, self.config.telegram_chat_id
+                    )
                 )
-            )
+        else:
+            print("  → Notifications disabled (--no-notify)")
 
         self.notifier = CompositeNotifier(notifiers)
-        print(f"Initialized {len(notifiers)} notification channels: " + 
+        print(f"Initialized {len(notifiers)} notification channels: " +
               ", ".join([n.__class__.__name__ for n in notifiers]))
 
         self.news_fetcher = NewsFetcher(

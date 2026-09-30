@@ -103,6 +103,9 @@ class NotificationFetcher:
 
             if response.status_code == 200:
                 data = response.json()
+                self.storage_manager.save_raw(
+                    "notifications", data, pupil_id=self.pupil_id
+                )
                 notifications = data.get("notifications", [])
                 print(f"  ✓ Successfully fetched {len(notifications)} notifications")
                 return notifications

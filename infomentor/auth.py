@@ -6,8 +6,6 @@ import urllib.parse
 from urllib.parse import urlparse
 
 import requests
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
 
 # Constants
 CLIENT_ID = "notificationapp"
@@ -364,6 +362,14 @@ class SessionManager:
         Then extract cookies and add them to the requests session.
         """
         print("  → Using Selenium to complete SSO authentication...")
+
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options as ChromeOptions
+        except ImportError:
+            print("  ✗ ERROR: selenium is not installed.")
+            print("  → Install dependencies with: uv sync")
+            return False
 
         driver = None
         try:

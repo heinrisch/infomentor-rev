@@ -40,6 +40,9 @@ class PupilFetcher:
 
             if response.status_code == 200:
                 html_content = response.text
+                self.storage_manager.save_raw_text(
+                    "raw_pupils.html", html_content
+                )
                 return self.parse_pupils_from_html(html_content)
             else:
                 print(

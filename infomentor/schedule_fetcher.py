@@ -61,6 +61,9 @@ class ScheduleFetcher:
 
             if response.status_code == 200:
                 schedule_data = response.json()
+                self.storage_manager.save_raw(
+                    "schedule", schedule_data, pupil_id=self.pupil_id
+                )
                 print(f"  ✓ Successfully fetched {len(schedule_data)} schedule entries")
                 return schedule_data
             else:

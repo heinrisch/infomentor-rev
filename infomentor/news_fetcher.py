@@ -64,6 +64,9 @@ class NewsFetcher:
             if response.status_code == 200:
                 try:
                     data = response.json()
+                    self.storage_manager.save_raw(
+                        "news", data, pupil_id=self.pupil_id
+                    )
                     items = data.get("items", [])
                     print(f"  ✓ Successfully fetched {len(items)} news items")
                     return items

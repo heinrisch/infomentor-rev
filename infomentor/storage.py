@@ -188,6 +188,35 @@ class StorageManager:
             print(f"    ✗ ERROR: Failed to load attendance: {e}")
             return None
 
+    def save_raw(self, kind, data, pupil_id=None):
+        """Save the full raw API response for later inspection.
+
+        Only the latest response per kind/pupil is kept (overwritten
+        each cycle) so inspection dumps don't grow without bounds.
+        """
+        if pupil_id:
+            filename = self.output_dir / f"raw_{kind}_{pupil_id}.json"
+        else:
+            filename = self.output_dir / f"raw_{kind}.json"
+
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return filename
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to save raw {kind} response: {e}")
+            return None
+
+    def save_raw_text(self, filename, text):
+        """Save a raw non-JSON response (e.g. HTML) for later inspection."""
+        path = self.output_dir / filename
+        try:
+            path.write_text(text, encoding="utf-8")
+            return path
+        except Exception as e:
+            print(f"    ✗ ERROR: Failed to save {filename}: {e}")
+            return None
+
     def save_pupils(self, pupils_data):
         """Save pupils information to JSON file"""
         filename = self.output_dir / "pupils.json"

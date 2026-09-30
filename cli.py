@@ -11,7 +11,7 @@ from infomentor.config import Config
 
 def cmd_fetch(args):
     try:
-        fetcher = InfoMentorFetcher()
+        fetcher = InfoMentorFetcher(notify=not args.no_notify)
         if args.once:
             try:
                 fetcher.fetch_and_process()
@@ -48,6 +48,11 @@ def main():
         type=int,
         default=60 * 60 * 12,
         help="Interval in seconds (default: 12 hours)",
+    )
+    fetch_parser.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="Fetch and store without sending notifications",
     )
     fetch_parser.set_defaults(func=cmd_fetch)
 
