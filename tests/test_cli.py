@@ -63,12 +63,30 @@ class NoNotifyTest(unittest.TestCase):
 
 
 class FakeJsonResponse:
-    def __init__(self, payload, status_code=200):
+    _NO_TEXT = object()
+
+    def __init__(self, payload=None, status_code=200, raw_text=_NO_TEXT):
         self._payload = payload
         self.status_code = status_code
+        self._raw_text = raw_text
 
     def json(self):
+        if self._raw_text is not FakeJsonResponse._NO_TEXT:
+            raise ValueError("Invalid JSON")
         return self._payload
+
+    @property
+    def text(self):
+        if self._raw_text is FakeJsonResponse._NO_TEXT:
+            return ""
+        return self._raw_text
+
+
+class FakeRawResponse(FakeJsonResponse):
+    """Non-JSON response with a given body."""
+
+    def __init__(self, raw_text, status_code=200):
+        super().__init__(status_code=status_code, raw_text=raw_text)
 
 
 class FakePostSession:
@@ -81,6 +99,14 @@ class FakePostSession:
     def post(self, url, headers=None, json=None, data=None, timeout=None):
         self.bodies.append(json if json is not None else data)
         return FakeJsonResponse(self.payloads.pop(0))
+
+
+class FakeRawPostSession(FakePostSession):
+    """Like FakePostSession but replays response objects as-is."""
+
+    def post(self, url, headers=None, json=None, data=None, timeout=None):
+        self.bodies.append(json if json is not None else data)
+        return self.payloads.pop(0)
 
 
 def make_storage(tmp):
@@ -458,6 +484,49 @@ class DocumentationProcessTest(unittest.TestCase):
             )
             self.assertEqual(len(sent), 1)
             self.assertIn("Completed", sent[0])
+
+    def test_empty_body_means_not_available(self):
+        from infomentor.documentation_fetcher import DocumentationFetcher
+        from infomentor.storage import StorageManager
+
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = make_storage(tmp)
+            capture = CaptureNotifier()
+            session = FakeRawPostSession(
+                [FakeRawResponse(""), FakeRawResponse(""), FakeJsonResponse([])]
+            )
+            fetcher = DocumentationFetcher(session, storage, capture.notifier)
+            fetcher.web_base_url = "https://hub.infomentor.se"
+            fetcher.pupil_id = "7"
+            fetcher.process_documentation()
+            # Baseline saved, nothing sent, no error state saved
+            self.assertEqual(capture.sent, [])
+            state = storage.load_state("documentation", pupil_id="7")
+            self.assertIsNotNone(state)
+            self.assertIsNone(state["conference"])
+
+    def test_garbage_body_saved_for_inspection(self):
+        from infomentor.documentation_fetcher import DocumentationFetcher
+
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = make_storage(tmp)
+            capture = CaptureNotifier()
+            session = FakeRawPostSession(
+                [
+                    FakeRawResponse("<html>oops</html>"),
+                    FakeJsonResponse([]),
+                    FakeJsonResponse([]),
+                ]
+            )
+            fetcher = DocumentationFetcher(session, storage, capture.notifier)
+            fetcher.web_base_url = "https://hub.infomentor.se"
+            fetcher.pupil_id = "7"
+            fetcher.process_documentation()
+            self.assertEqual(capture.sent, [])
+            self.assertIsNone(storage.load_state("documentation", pupil_id="7"))
+            debug = Path(tmp) / "news" / "raw_error_documentation_conference_7.txt"
+            self.assertTrue(debug.exists())
+            self.assertIn("oops", debug.read_text(encoding="utf-8"))
 
 
 class TimetableProcessTest(unittest.TestCase):

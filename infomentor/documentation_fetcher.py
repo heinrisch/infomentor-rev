@@ -10,7 +10,7 @@ class DocumentationFetcher:
         self.pupil_name = None
         self.pupil_id = None
 
-    def _post(self, path, raw_kind):
+    def _post(self, path, raw_kind, empty):
         url = f"{self.web_base_url}{path}"
         headers = {
             "Accept": "application/json",
@@ -25,7 +25,18 @@ class DocumentationFetcher:
         try:
             data = response.json()
         except ValueError:
+            if not response.text.strip():
+                # Pupils without conferences (e.g. preschool) get 200
+                # with an empty body. Not an error.
+                print(f"  → {path} not available for this pupil")
+                return empty
             print(f"  ✗ ERROR: Invalid JSON from {path}")
+            name = (
+                f"raw_error_{raw_kind}_{self.pupil_id}.txt"
+                if self.pupil_id
+                else f"raw_error_{raw_kind}.txt"
+            )
+            self.storage_manager.save_raw_text(name, response.text[:2000])
             return None
         self.storage_manager.save_raw(raw_kind, data, pupil_id=self.pupil_id)
         return data
@@ -42,14 +53,17 @@ class DocumentationFetcher:
             conference = self._post(
                 "/Documentation/Conference/GetCurrentConference",
                 "documentation_conference",
+                {},
             )
             history = self._post(
                 "/Documentation/Conference/GetHistoryConferenceList",
                 "documentation_history",
+                [],
             )
             adaptations = self._post(
                 "/Documentation/ExtraAdaptations/GetList",
                 "documentation_adaptations",
+                [],
             )
         except Exception as e:
             print(f"  ✗ ERROR: Error fetching documentation: {e}")
